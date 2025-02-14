@@ -15,7 +15,7 @@ Plan a night out by entering a location (zipcode, gps location) to find points o
 - [ ] Send routes to navigation app
 - [ ] Add and manage friends
 - [ ] Share itineraries with friends
-- [] View friends' public itineraries
+- [ ] View friends' public itineraries
 
 ### Nice-to-Have
 - [ ] Collaborative itinerary editing
