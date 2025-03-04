@@ -2,6 +2,10 @@
   "name": "nightout-frontend",
   "main": "expo-router/entry",
   "version": "1.0.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zachholt/nightout-frontend.git"
+  },
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
