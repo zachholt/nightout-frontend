@@ -5,7 +5,6 @@ import { NearbyLocation, LocationFilters } from '../../types/location';
 import LocationsList from '../Locations/LocationsList';
 import LocationDetails from '../Locations/LocationDetails';
 import LocationFiltersComponent from '../Locations/LocationFilters';
-import AddToRouteButton from './AddToRouteButton';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface LocationBottomSheetProps {
@@ -55,14 +54,7 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
             location={selectedLocation}
             onClose={onLocationClose}
             visible={true}
-          />
-          {/* Add to Route Button inside bottom sheet */}
-          <AddToRouteButton
-            location={selectedLocation}
-            isInRoute={isInRoute(selectedLocation.id)}
-            onToggle={onRouteToggle}
-            isDark={isDark}
-            insets={insets}
+            onRouteToggle={onRouteToggle}
           />
         </View>
       );
@@ -137,7 +129,7 @@ const styles = StyleSheet.create({
         shadowRadius: 2,
       },
       android: {
-        elevation: 3,
+        elevation: 10,
       },
     }),
     zIndex: 10,

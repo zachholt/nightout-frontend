@@ -8,6 +8,7 @@ interface SignedOutViewProps {
     accent: string;
     buttonBackground: string;
     inputBackground: string;
+    inputBorder: string;
   };
   isLogin: boolean;
   name: string;
@@ -44,7 +45,13 @@ export function SignedOutView({
         
         <View style={styles.formContainer}>
           {!isLogin && (
-            <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground }]}>
+            <View style={[
+              styles.inputContainer, 
+              { 
+                backgroundColor: colors.inputBackground,
+                borderColor: colors.inputBorder,
+              }
+            ]}>
               <Ionicons name="person-outline" size={20} color={colors.secondaryText} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: colors.text }]}
@@ -58,7 +65,13 @@ export function SignedOutView({
             </View>
           )}
 
-          <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground }]}>
+          <View style={[
+            styles.inputContainer, 
+            { 
+              backgroundColor: colors.inputBackground,
+              borderColor: colors.inputBorder,
+            }
+          ]}>
             <Ionicons name="mail-outline" size={20} color={colors.secondaryText} style={styles.inputIcon} />
             <TextInput
               style={[styles.input, { color: colors.text }]}
@@ -72,7 +85,13 @@ export function SignedOutView({
             />
           </View>
 
-          <View style={[styles.inputContainer, { backgroundColor: colors.inputBackground }]}>
+          <View style={[
+            styles.inputContainer, 
+            { 
+              backgroundColor: colors.inputBackground,
+              borderColor: colors.inputBorder,
+            }
+          ]}>
             <Ionicons name="lock-closed-outline" size={20} color={colors.secondaryText} style={styles.inputIcon} />
             <TextInput
               style={[styles.input, { color: colors.text }]}
@@ -140,9 +159,10 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 12,
+    borderRadius: 10,
     paddingHorizontal: 12,
     height: 48,
+    borderWidth: 1,
   },
   inputIcon: {
     marginRight: 8,

@@ -7,6 +7,8 @@ interface SignedInViewProps {
     text: string;
     secondaryText: string;
     buttonBackground: string;
+    inputBackground?: string;
+    inputBorder?: string;
   };
   user: {
     name: string;

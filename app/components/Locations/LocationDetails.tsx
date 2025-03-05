@@ -19,9 +19,10 @@ interface LocationDetailsProps {
   location: NearbyLocation;
   onClose: () => void;
   visible: boolean;
+  onRouteToggle?: () => void;
 }
 
-const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, visible }) => {
+const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, visible, onRouteToggle }) => {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const { currentRoute } = useRoute();
@@ -114,8 +115,30 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
           <Ionicons name="chevron-back" size={24} color={isDark ? '#fff' : '#000'} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: isDark ? '#fff' : '#000' }]}>
-        {location.name}
+          {location.name}
         </Text>
+        
+        {/* Add to Route Button in header */}
+        {onRouteToggle && (
+          <TouchableOpacity
+            style={[
+              styles.headerRouteButton,
+              {
+                backgroundColor: isInRoute ? '#F44336' : '#2196F3',
+              },
+            ]}
+            onPress={onRouteToggle}
+          >
+            <Ionicons
+              name={isInRoute ? 'trash-outline' : 'add-circle-outline'}
+              size={18}
+              color="#fff"
+            />
+            <Text style={styles.headerRouteButtonText}>
+              {isInRoute ? 'Remove' : 'Add to Route'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
       
       {/* Main Content with BottomSheetScrollView */}
@@ -189,66 +212,6 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
             </View>
           )}
         </View>
-        
-        {/* Opening Hours Section */}
-        {location.details?.openingHours && location.details.openingHours.length > 0 && (
-          <View style={[styles.section, { borderTopColor: isDark ? '#333' : '#e0e0e0' }]}>
-            <Text style={[styles.sectionTitle, { color: isDark ? '#fff' : '#000' }]}>
-              Opening Hours
-            </Text>
-            {location.details.openingHours.map((hour, index) => (
-              <Text
-                key={index}
-                style={[styles.hoursItem, { color: isDark ? '#ddd' : '#666' }]}
-              >
-                {hour}
-              </Text>
-            ))}
-          </View>
-        )}
-        
-        {/* Action Buttons Section */}
-        <View style={[styles.actionButtonsContainer, { 
-          borderTopColor: isDark ? '#333' : '#e0e0e0',
-          borderBottomColor: isDark ? '#333' : '#e0e0e0'
-        }]}>
-          {/* Directions Button */}
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: isDark ? '#333' : '#f0f0f0' }]}
-            onPress={handleGetDirections}
-          >
-            <Ionicons name="navigate-circle-outline" size={24} color="#2196F3" />
-            <Text style={[styles.actionButtonText, { color: isDark ? '#ddd' : '#666' }]}>
-              Directions
-            </Text>
-          </TouchableOpacity>
-          
-          {/* Call Button */}
-          {location.details?.phoneNumber && (
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: isDark ? '#333' : '#f0f0f0' }]}
-              onPress={handleCall}
-            >
-              <Ionicons name="call-outline" size={24} color="#4CD964" />
-              <Text style={[styles.actionButtonText, { color: isDark ? '#ddd' : '#666' }]}>
-                Call
-              </Text>
-            </TouchableOpacity>
-          )}
-          
-          {/* Website Button */}
-          {location.details?.website && (
-            <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: isDark ? '#333' : '#f0f0f0' }]}
-              onPress={handleWebsite}
-            >
-              <Ionicons name="globe-outline" size={24} color="#FF9500" />
-              <Text style={[styles.actionButtonText, { color: isDark ? '#ddd' : '#666' }]}>
-                Website
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
       </BottomSheetScrollView>
     </>
   );
@@ -273,6 +236,22 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
+    flex: 1,
+  },
+  headerRouteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  headerRouteButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    marginLeft: 4,
+    fontSize: 14,
   },
   stickyHeader: {
     position: 'absolute',

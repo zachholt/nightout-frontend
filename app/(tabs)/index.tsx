@@ -57,7 +57,7 @@ export default function TabOneScreen() {
   };
   
   // MARK: - Bottom Sheet Configuration
-  const snapPoints = useMemo(() => ['5%','50%', '100%'], []);
+  const snapPoints = useMemo(() => ['3%','50%', '100%'], []);
   
   const handleSheetChanges = useCallback((index: number) => {
     console.log('handleSheetChanges', index);

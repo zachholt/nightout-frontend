@@ -29,7 +29,8 @@ export default function ProfileScreen() {
     secondaryText: colorScheme === 'dark' ? '#8E8E93' : '#666666',
     accent: '#007AFF',
     buttonBackground: colorScheme === 'dark' ? '#2C2C2E' : '#F0F0F0',
-    inputBackground: colorScheme === 'dark' ? '#2C2C2E' : '#F0F0F0',
+    inputBackground: colorScheme === 'dark' ? '#1C1C1E' : '#F2F2F7',
+    inputBorder: colorScheme === 'dark' ? '#38383A' : '#E5E5EA',
   };
 
   const loginMutation = useMutation({

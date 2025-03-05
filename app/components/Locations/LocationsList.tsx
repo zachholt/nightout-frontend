@@ -82,7 +82,7 @@ export default function LocationsList({
 const styles = StyleSheet.create({
   listContainer: {
     flexGrow: 1,
-    paddingVertical: 8,
+    paddingVertical: 8
   },
   emptyContainer: {
     flex: 1,
