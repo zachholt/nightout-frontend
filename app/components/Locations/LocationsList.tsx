@@ -64,6 +64,7 @@ export default function LocationsList({
     <View style={styles.listContainer}>
       {locations.map(item => (
         <LocationCard
+          location={item}
           key={item.id}
           name={item.name}
           distance={item.distance}

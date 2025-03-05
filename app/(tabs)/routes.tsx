@@ -3,11 +3,13 @@ import { StyleSheet, View, Text, ScrollView, TouchableOpacity, TextInput, Alert,
 import { useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, RouteLocation } from '../context/RouteContext';
+import { useCheckIn } from '../components/context/CheckInContext'; // Import the CheckInContext
 import * as Location from 'expo-location';
 import DraggableFlatList, { 
   ScaleDecorator, 
   RenderItemParams 
 } from 'react-native-draggable-flatlist';
+import LocationCard from '../components/Locations/LocationCard'; // Import the LocationCard component
 
 // Define a type for travel mode
 type TravelMode = 'walking' | 'driving';
@@ -30,6 +32,10 @@ export default function RoutesScreen() {
 
   // Get route context
   const { currentRoute, savedRoutes, removeFromRoute, clearRoute, saveRoute, updateRoute } = useRoute();
+
+  // Get checked-in locations from CheckInContext
+  const { state: checkInState } = useCheckIn();
+  const checkedInLocations = checkInState.checkIns.map((checkIn) => checkIn.location);
 
   // State
   const [routeName, setRouteName] = useState('');
@@ -67,13 +73,6 @@ export default function RoutesScreen() {
       setTotalDuration('');
     }
   }, [currentRoute]);
-
-  // Create a memoized version of the animation value to prevent warnings
-  const getAnimatedStyle = useCallback((opacity: Animated.Value) => {
-    return {
-      opacity
-    };
-  }, []);
 
   // Calculate route information using Google Directions API
   const calculateRouteInfo = async () => {
@@ -344,10 +343,50 @@ export default function RoutesScreen() {
     );
   };
 
+  // Render checked-in events
+  const renderCheckedInEvents = () => {
+    if (checkedInLocations.length === 0) {
+      return (
+        <View style={[styles.emptyState, { backgroundColor: cardBackground }]}>
+          <Ionicons name="checkmark-circle-outline" size={48} color={accentColor} />
+          <Text style={[styles.emptyStateText, { color: textColor }]}>
+            No checked-in locations yet
+          </Text>
+          <Text style={[styles.emptyStateSubtext, { color: textColor }]}>
+            Check in at locations from the map to see them here
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.checkedInContainer}>
+        <Text style={[styles.sectionTitle, { color: textColor }]}>Checked-In Events</Text>
+        <View style={styles.listContainer}>
+          {checkedInLocations.map((item) => (
+            <LocationCard
+              location={item}
+              key={item.id}
+              name={item.name}
+              distance={item.distance}
+              address={item.address}
+              iconName="beer-outline"
+              isOpenNow={item.isOpenNow}
+              rating={item.rating}
+              isInRoute={false} // Not used in this context
+              onPress={() => {}} // No action needed for checked-in events
+            />
+          ))}
+        </View>
+      </View>
+    );
+  };
+
   return (
     <ScrollView style={[styles.container, { backgroundColor: backgroundColor }]}>
       <Text style={[styles.title, { color: textColor }]}>Your Route</Text>
       {renderCurrentRoute()}
+      {renderCheckedInEvents()}
     </ScrollView>
   );
 }
@@ -371,7 +410,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 12,
     padding: 24,
-    minHeight: 300,
+    minHeight: 200,
   },
   emptyStateText: {
     fontSize: 18,
@@ -533,4 +572,15 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     width: '100%',
   },
-}); 
+  checkedInContainer: {
+    marginTop: 24,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  listContainer: {
+    marginBottom: 16,
+  },
+});
