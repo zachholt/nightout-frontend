@@ -1,11 +1,13 @@
 import { Tabs } from 'expo-router';
 import { useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { CheckInProvider } from '../components/context/CheckInContext';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
 
   return (
+    <CheckInProvider>
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: '#007AFF',
@@ -51,5 +53,6 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+    </CheckInProvider>
   );
 } 

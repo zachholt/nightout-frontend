@@ -16,7 +16,7 @@ export const fetchNearbyPlaces = async (
   try {
     // Fetch all bars in a single request
     const response = await fetch(
-      `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=1500&type=bar|restaurant&keyword=bar&key=${GOOGLE_MAPS_API_KEY}`
+      `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=11500&type=bar|restaurant&keyword=bar&key=${GOOGLE_MAPS_API_KEY}`
     );
     
     if (!response.ok) {
@@ -24,6 +24,8 @@ export const fetchNearbyPlaces = async (
     }
     
     const data = await response.json();
+
+    console.log('featch bar response', data )
     
     if (data.status !== 'OK') {
       console.error('Google Places API error:', data.status, data.error_message);
