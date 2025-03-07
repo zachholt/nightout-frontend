@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:8080/api';
+const API_URL = 'http://98.82.6.247:8080/api';
 
 export interface AuthResponse {
   id: number;

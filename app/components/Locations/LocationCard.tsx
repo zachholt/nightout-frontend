@@ -7,6 +7,7 @@ import { NearbyLocation } from '@/app/types/location';
 export type LocationCardProps = {
   location: NearbyLocation;
   name: string;
+  type: string;
   distance?: number;
   address: string;
   iconName: keyof typeof Ionicons.glyphMap;
@@ -20,6 +21,7 @@ export type LocationCardProps = {
 export const LocationCard: React.FC<LocationCardProps> = ({
   location,
   name,
+  type,
   distance,
   address,
   iconName,

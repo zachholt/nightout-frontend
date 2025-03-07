@@ -7,7 +7,7 @@ export type RouteLocation = {
   address: string;
   latitude: number;
   longitude: number;
-  locationType: 'bar';
+  locationType: string;
 };
 
 export type Route = {

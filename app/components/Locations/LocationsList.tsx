@@ -3,6 +3,7 @@ import { View, Text, FlatList, StyleSheet, ActivityIndicator, useColorScheme } f
 import { NearbyLocation } from '../../types/location';
 import { LocationCard } from './LocationCard';
 import { useRoute } from '../../context/RouteContext';
+import { getLocationIcon } from '../../utils/locationUtils';
 
 interface LocationsListProps {
   locations: NearbyLocation[];
@@ -31,7 +32,7 @@ export default function LocationsList({
         <View style={styles.emptyContainer}>
           <ActivityIndicator size="large" color="#2196F3" />
           <Text style={[styles.emptyText, { color: isDark ? '#ddd' : '#666' }]}>
-            Finding bars near you...
+            Finding places near you...
           </Text>
         </View>
       );
@@ -50,7 +51,7 @@ export default function LocationsList({
     return (
       <View style={styles.emptyContainer}>
         <Text style={[styles.emptyText, { color: isDark ? '#ddd' : '#666' }]}>
-          No bars found nearby. Try adjusting your filters.
+          No places found nearby. Try adjusting your filters.
         </Text>
       </View>
     );
@@ -67,9 +68,10 @@ export default function LocationsList({
           location={item}
           key={item.id}
           name={item.name}
+          type={item.type}
           distance={item.distance}
           address={item.address}
-          iconName="beer-outline"
+          iconName={getLocationIcon(item.type)}
           isOpenNow={item.isOpenNow}
           rating={item.rating}
           isInRoute={isInRoute(item.id)}

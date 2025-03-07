@@ -7,7 +7,7 @@ export interface NearbyLocation {
     longitude: number;
   };
   address: string;
-  type: 'bar';
+  type: string;
   isOpenNow?: boolean;
   opensSoon?: boolean;
   closesSoon?: boolean;

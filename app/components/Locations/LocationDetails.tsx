@@ -14,6 +14,7 @@ import { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import { NearbyLocation } from '../../types/location';
 import { useRoute, RouteLocation } from '../../context/RouteContext';
+import { getLocationIcon, getLocationTypeName } from '../../utils/locationUtils';
 
 interface LocationDetailsProps {
   location: NearbyLocation;
@@ -150,9 +151,13 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
         <View style={styles.mainInfoSection}>
           {/* Category */}
           <View style={styles.categoryContainer}>
-            <Ionicons name="beer-outline" size={18} color={isDark ? '#ddd' : '#666'} />
+            <Ionicons 
+              name={getLocationIcon(location.type)} 
+              size={18} 
+              color={isDark ? '#ddd' : '#666'} 
+            />
             <Text style={[styles.categoryText, { color: isDark ? '#ddd' : '#666' }]}>
-              Bar
+              {getLocationTypeName(location.type)}
             </Text>
           </View>
           

@@ -283,7 +283,7 @@ export default function TabOneScreen() {
         address: selectedLocation.address,
         latitude: selectedLocation.location.latitude,
         longitude: selectedLocation.location.longitude,
-        locationType: 'bar',
+        locationType: selectedLocation.type,
       });
     }
   };

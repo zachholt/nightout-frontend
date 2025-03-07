@@ -14,7 +14,7 @@ export const fetchNearbyPlaces = async (
   setError(null);
   
   try {
-    // Fetch all bars in a single request
+    // Fetch multiple types of places in a single request
     const response = await fetch(
       `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=11500&type=bar|restaurant&keyword=bar&key=${GOOGLE_MAPS_API_KEY}`
     );
@@ -33,19 +33,44 @@ export const fetchNearbyPlaces = async (
     }
     
     // Process and return the results
-    return data.results.map((place: any) => ({
-      id: place.place_id,
-      name: place.name,
-      location: {
-        latitude: place.geometry.location.lat,
-        longitude: place.geometry.location.lng,
-      },
-      address: place.vicinity,
-      type: 'bar',
-      isOpenNow: place.opening_hours?.open_now,
-      rating: place.rating,
-      details: null,
-    }));
+    return data.results.map((place: any) => {
+      // Determine the primary type from the types array
+      let primaryType = 'bar'; // Default type
+      
+      if (place.types && place.types.length > 0) {
+        // Check for specific venue types in order of priority
+        if (place.types.includes('night_club')) {
+          primaryType = 'night_club';
+        } else if (place.types.includes('bar')) {
+          primaryType = 'bar';
+        } else if (place.types.includes('restaurant')) {
+          primaryType = 'restaurant';
+        } else if (place.types.includes('cafe')) {
+          primaryType = 'cafe';
+        } else if (place.types.includes('movie_theater')) {
+          primaryType = 'movie_theater';
+        } else if (place.types.includes('bowling_alley')) {
+          primaryType = 'bowling_alley';
+        } else {
+          // Use the first type if none of the specific types match
+          primaryType = place.types[0];
+        }
+      }
+      
+      return {
+        id: place.place_id,
+        name: place.name,
+        location: {
+          latitude: place.geometry.location.lat,
+          longitude: place.geometry.location.lng,
+        },
+        address: place.vicinity,
+        type: primaryType,
+        isOpenNow: place.opening_hours?.open_now,
+        rating: place.rating,
+        details: null,
+      };
+    });
   } catch (error) {
     console.error('Error fetching nearby places:', error);
     setError('Failed to fetch nearby places. Please try again.');

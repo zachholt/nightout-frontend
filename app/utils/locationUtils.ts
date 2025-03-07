@@ -156,6 +156,41 @@ export const parseTimeString = (timeStr: string, baseDate: Date) => {
 };
 
 // Get the appropriate icon for the location type
-export const getLocationIcon = (locationType: 'bar'): string => {
-  return 'beer-outline';
+export const getLocationIcon = (locationType: string): any => {
+  switch (locationType) {
+    case 'bar':
+      return 'beer-outline';
+    case 'restaurant':
+      return 'restaurant-outline';
+    case 'cafe':
+      return 'cafe-outline';
+    case 'night_club':
+      return 'musical-notes-outline';
+    case 'movie_theater':
+      return 'film-outline';
+    case 'bowling_alley':
+      return 'basketball-outline';
+    default:
+      return 'business-outline';
+  }
+};
+
+// Get a human-readable name for the location type
+export const getLocationTypeName = (locationType: string): string => {
+  switch (locationType) {
+    case 'bar':
+      return 'Bar';
+    case 'restaurant':
+      return 'Restaurant';
+    case 'cafe':
+      return 'Café';
+    case 'night_club':
+      return 'Night Club';
+    case 'movie_theater':
+      return 'Movie Theater';
+    case 'bowling_alley':
+      return 'Bowling Alley';
+    default:
+      return locationType.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  }
 }; 
