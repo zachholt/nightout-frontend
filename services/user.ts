@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'http://98.82.6.247:8080/api';
+const API_URL = 'http://44.203.161.109:8080/api';
 
 export interface UserResponse {
   id: number;
@@ -8,11 +8,13 @@ export interface UserResponse {
   email: string;
   createdAt: string;
   profileImage: string;
-  coordinates: string;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export interface CheckInRequest {
-  coordinates: string;
+  latitude: number;
+  longitude: number;
 }
 
 export const userApi = {
@@ -29,18 +31,25 @@ export const userApi = {
   },
 
   // Check in at a location
-  checkIn: async (email: string, coordinates: string): Promise<UserResponse> => {
+  checkIn: async (email: string, latitude: number, longitude: number): Promise<UserResponse> => {
     const response = await axios.post(
-      `${API_URL}/users/checkin?email=${email}&coordinates=${coordinates}`
+      `${API_URL}/users/checkin`, 
+      { latitude, longitude },
+      { params: { email } }
     );
     return response.data;
   },
 
   // Get users at specific coordinates
-  getUsersByCoordinates: async (coordinates: string): Promise<UserResponse[]> => {
+  getUsersByCoordinates: async (
+    latitude: number, 
+    longitude: number, 
+    radiusInMeters: number = 500
+  ): Promise<UserResponse[]> => {
     const response = await axios.get(
-      `${API_URL}/users/by-coordinates?coordinates=${coordinates}`
+      `${API_URL}/users/by-coordinates`, 
+      { params: { latitude, longitude, radiusInMeters } }
     );
     return response.data;
   }
-}; 
+};

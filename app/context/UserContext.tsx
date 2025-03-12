@@ -8,7 +8,9 @@ export interface User {
   email: string;
   createdAt: string;
   profileImage: string;
-  coordinates: string;
+  // Replace string coordinates with numeric latitude and longitude
+  latitude: number | null;
+  longitude: number | null;
 }
 
 interface UserContextType {
@@ -17,7 +19,7 @@ interface UserContextType {
   isLoading: boolean;
   error: string | null;
   checkIn: (location: { latitude: number; longitude: number }) => Promise<void>;
-  getUsersByLocation: (coordinates: string) => Promise<User[]>;
+  getUsersByLocation: (latitude: number, longitude: number, radiusInMeters?: number) => Promise<User[]>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -38,11 +40,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(true);
       setError(null);
       
-      // Format coordinates as "latitude,longitude"
-      const coordinates = `${location.latitude},${location.longitude}`;
-      
-      // Call the API to update user coordinates
-      const updatedUser = await userApi.checkIn(user.email, coordinates);
+      // Pass latitude and longitude directly instead of as a string
+      const updatedUser = await userApi.checkIn(user.email, location.latitude, location.longitude);
       
       // Update the user state with the new coordinates
       setUser(updatedUser);
@@ -55,13 +54,17 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Get users by location
-  const getUsersByLocation = async (coordinates: string): Promise<User[]> => {
+  const getUsersByLocation = async (
+    latitude: number, 
+    longitude: number, 
+    radiusInMeters: number = 500
+  ): Promise<User[]> => {
     try {
       setIsLoading(true);
       setError(null);
       
-      // Call the API to get users at the specified coordinates
-      const users = await userApi.getUsersByCoordinates(coordinates);
+      // Call the API to get users at the specified coordinates with radius
+      const users = await userApi.getUsersByCoordinates(latitude, longitude, radiusInMeters);
       return users;
     } catch (err) {
       setError('Failed to get users at this location.');
@@ -94,4 +97,4 @@ export const useUser = (): UserContextType => {
     throw new Error('useUser must be used within a UserProvider');
   }
   return context;
-}; 
+};

@@ -341,4 +341,4 @@ const styles = StyleSheet.create({
   headerButton: {
     marginRight: 15,
   },
-}); 
+});
