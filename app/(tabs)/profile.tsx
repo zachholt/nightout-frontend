@@ -1,27 +1,26 @@
 import { Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useColorScheme } from 'react-native';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { authApi, type AuthResponse } from '@/services/auth';
 import { SignedOutView } from './components/SignedOutView';
 import { SignedInView } from './components/SignedInView';
-
-type User = {
-  id: number;
-  name: string;
-  email: string;
-  photoUrl?: string;
-};
+import { useUser, User } from '../context/UserContext';
 
 export default function ProfileScreen() {
   const queryClient = useQueryClient();
   const colorScheme = useColorScheme();
+  const { user, setUser } = useUser();
   const [isSignedIn, setIsSignedIn] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLogin, setIsLogin] = useState(true);
+
+  // Update isSignedIn when user changes
+  useEffect(() => {
+    setIsSignedIn(!!user);
+  }, [user]);
 
   const colors = {
     background: colorScheme === 'dark' ? '#1C1C1E' : '#FFFFFF',
@@ -36,13 +35,17 @@ export default function ProfileScreen() {
   const loginMutation = useMutation({
     mutationFn: authApi.login,
     onSuccess: (data: AuthResponse) => {
-      setIsSignedIn(true);
-      setUser({
+      const userData: User = {
         id: data.id,
         name: data.name,
         email: data.email,
-        photoUrl: 'https://via.placeholder.com/150',
-      });
+        createdAt: new Date().toISOString(),
+        profileImage: 'https://via.placeholder.com/150',
+        coordinates: '0,0',
+      };
+      setUser(userData);
+      setIsSignedIn(true);
+      
       // Clear the form
       setEmail('');
       setPassword('');
@@ -55,13 +58,17 @@ export default function ProfileScreen() {
   const registerMutation = useMutation({
     mutationFn: authApi.register,
     onSuccess: (data: AuthResponse) => {
-      setIsSignedIn(true);
-      setUser({
+      const userData: User = {
         id: data.id,
         name: data.name,
         email: data.email,
-        photoUrl: 'https://via.placeholder.com/150',
-      });
+        createdAt: new Date().toISOString(),
+        profileImage: 'https://via.placeholder.com/150',
+        coordinates: '0,0',
+      };
+      setUser(userData);
+      setIsSignedIn(true);
+      
       // Clear the form
       setName('');
       setEmail('');
@@ -75,8 +82,8 @@ export default function ProfileScreen() {
   const logoutMutation = useMutation({
     mutationFn: authApi.logout,
     onSuccess: () => {
-      setIsSignedIn(false);
       setUser(null);
+      setIsSignedIn(false);
       setEmail('');
       setPassword('');
       queryClient.clear();

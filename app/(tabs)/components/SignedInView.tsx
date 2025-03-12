@@ -1,5 +1,6 @@
 import { StyleSheet, View, Text, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useUser, User } from '../../context/UserContext';
 
 interface SignedInViewProps {
   colors: {
@@ -9,26 +10,41 @@ interface SignedInViewProps {
     buttonBackground: string;
     inputBackground?: string;
     inputBorder?: string;
+    accent: string;
   };
-  user: {
-    name: string;
-    email: string;
-    photoUrl?: string;
-  };
+  user: User;
   handleSignOut: () => void;
 }
 
 export function SignedInView({ colors, user, handleSignOut }: SignedInViewProps) {
+  const { error } = useUser();
+  
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.profileHeader}>
-        <Image
-          source={{ uri: user.photoUrl }}
-          style={styles.profileImage}
-        />
-        <Text style={[styles.profileName, { color: colors.text }]}>{user.name}</Text>
-        <Text style={[styles.profileEmail, { color: colors.secondaryText }]}>{user.email}</Text>
+        <View style={styles.avatarContainer}>
+          <Image
+            source={{ uri: user.profileImage || 'https://via.placeholder.com/100' }}
+            style={styles.avatar}
+          />
+        </View>
+        <View style={styles.userInfo}>
+          <Text style={[styles.userName, { color: colors.text }]}>
+            {user.name || 'User'}
+          </Text>
+          <Text style={[styles.userEmail, { color: colors.secondaryText }]}>
+            {user.email}
+          </Text>
+        </View>
       </View>
+
+      {error && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>
+            {error}
+          </Text>
+        </View>
+      )}
 
       <View style={styles.menuContainer}>
         <TouchableOpacity style={[styles.menuItem, { backgroundColor: colors.buttonBackground }]}>
@@ -69,19 +85,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 32,
   },
-  profileImage: {
+  avatarContainer: {
     width: 100,
     height: 100,
     borderRadius: 50,
     marginBottom: 16,
   },
-  profileName: {
+  avatar: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 50,
+  },
+  userInfo: {
+    alignItems: 'center',
+  },
+  userName: {
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 4,
   },
-  profileEmail: {
+  userEmail: {
     fontSize: 16,
+    marginBottom: 8,
+  },
+  errorContainer: {
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#FF3B30',
+  },
+  errorText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   menuContainer: {
     gap: 12,

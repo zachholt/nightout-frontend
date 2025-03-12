@@ -9,12 +9,15 @@ import {
   useColorScheme,
   Animated,
   Platform,
+  Alert,
 } from 'react-native';
 import { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import { NearbyLocation } from '../../types/location';
 import { useRoute, RouteLocation } from '../../context/RouteContext';
+import { useUser } from '../../context/UserContext';
 import { getLocationIcon, getLocationTypeName } from '../../utils/locationUtils';
+import * as Location from 'expo-location';
 
 interface LocationDetailsProps {
   location: NearbyLocation;
@@ -27,6 +30,7 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const { currentRoute } = useRoute();
+  const { user, checkIn, isLoading: isCheckingIn } = useUser();
   const scrollY = useRef(new Animated.Value(0)).current;
   const [isScrolled, setIsScrolled] = useState(false);
   
@@ -76,6 +80,27 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
       Linking.openURL(location.details.website);
     }
   };
+
+  // Handle check-in
+  const handleCheckIn = async () => {
+    if (!user) {
+      Alert.alert('Sign In Required', 'Please sign in to check in at this location.');
+      return;
+    }
+
+    try {
+      // Check in with location coordinates
+      await checkIn({
+        latitude: location.location.latitude,
+        longitude: location.location.longitude,
+      });
+      
+      Alert.alert('Success', 'You have checked in at this location!');
+    } catch (err) {
+      Alert.alert('Error', 'Failed to check in. Please try again.');
+      console.error('Check-in error:', err);
+    }
+  };
   
   const openingHours = location.details?.openingHours;
   
@@ -119,27 +144,28 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
           {location.name}
         </Text>
         
-        {/* Add to Route Button in header */}
-        {onRouteToggle && (
-          <TouchableOpacity
-            style={[
-              styles.headerRouteButton,
-              {
-                backgroundColor: isInRoute ? '#F44336' : '#2196F3',
-              },
-            ]}
-            onPress={onRouteToggle}
-          >
-            <Ionicons
-              name={isInRoute ? 'trash-outline' : 'add-circle-outline'}
-              size={18}
-              color="#fff"
-            />
-            <Text style={styles.headerRouteButtonText}>
-              {isInRoute ? 'Remove' : 'Add to Route'}
-            </Text>
-          </TouchableOpacity>
-        )}
+        <View style={styles.headerButtonsContainer}>
+          {/* Check-in Button in Header */}
+          {user && (
+            <TouchableOpacity
+              style={[
+                styles.headerActionButton,
+                { backgroundColor: isCheckingIn ? '#888' : '#4CD964' }
+              ]}
+              onPress={handleCheckIn}
+              disabled={isCheckingIn}
+            >
+              <Ionicons
+                name="location"
+                size={18}
+                color="#fff"
+              />
+              <Text style={styles.headerActionButtonText}>
+                {isCheckingIn ? 'Checking In...' : 'Check In'}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
       
       {/* Main Content with BottomSheetScrollView */}
@@ -216,6 +242,30 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
               </Text>
             </View>
           )}
+          
+          {/* Add to Route Button at Bottom */}
+          {onRouteToggle && (
+            <View style={styles.routeButtonContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.routeButton,
+                  {
+                    backgroundColor: isInRoute ? '#F44336' : '#2196F3',
+                  },
+                ]}
+                onPress={onRouteToggle}
+              >
+                <Ionicons
+                  name={isInRoute ? 'remove-circle' : 'add-circle'}
+                  size={24}
+                  color="#fff"
+                />
+                <Text style={styles.routeButtonText}>
+                  {isInRoute ? 'Remove from Route' : 'Add to Route'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </BottomSheetScrollView>
     </>
@@ -243,16 +293,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
   },
-  headerRouteButton: {
+  headerButtonsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 'auto', // Push buttons to the right
+  },
+  headerActionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 8,
-    marginLeft: 8,
   },
-  headerRouteButtonText: {
+  headerActionButtonText: {
     color: '#fff',
     fontWeight: '600',
     marginLeft: 4,
@@ -300,16 +354,16 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   statusIndicator: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     marginRight: 6,
   },
   statusText: {
     fontWeight: '500',
   },
   hoursText: {
-    marginBottom: 12,
+    marginBottom: 16,
   },
   infoRow: {
     flexDirection: 'row',
@@ -318,41 +372,25 @@ const styles = StyleSheet.create({
   },
   infoText: {
     marginLeft: 8,
-    fontSize: 16,
+    flex: 1,
   },
-  section: {
-    padding: 16,
-    borderTopWidth: 1,
+  routeButtonContainer: {
+    marginTop: 24,
+    alignItems: 'center',
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-  hoursItem: {
-    marginBottom: 8,
-    fontSize: 15,
-  },
-  actionButtonsContainer: {
+  routeButton: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    padding: 16,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-  },
-  actionButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
     borderRadius: 8,
-    minWidth: 100,
   },
-  actionButtonText: {
-    marginTop: 4,
-    fontWeight: '500',
-  },
-  bottomPadding: {
-    height: 80,
+  routeButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    marginLeft: 8,
+    fontSize: 16,
   },
 });
 

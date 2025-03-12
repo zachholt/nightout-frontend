@@ -1,6 +1,6 @@
 import React from 'react';
 import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
-import { StyleSheet, View, useColorScheme, NativeScrollEvent, NativeSyntheticEvent, TouchableOpacity, Platform } from 'react-native';
+import { StyleSheet, View, useColorScheme, NativeScrollEvent, NativeSyntheticEvent, TouchableOpacity, Platform, Text } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import MapView, { Region } from 'react-native-maps';
@@ -291,21 +291,12 @@ export default function TabOneScreen() {
   // MARK: - Main Render
   return (
     <GestureHandlerRootView style={styles.container}>
-      {/* Header configuration */}
       <Stack.Screen
         options={{
-          headerRight: () => (
-            <TouchableOpacity 
-              style={styles.headerButton} 
-              onPress={centerOnUserLocation}
-            >
-              <Ionicons name="locate" size={24} color="#2196F3" />
-            </TouchableOpacity>
-          ),
+          headerShown: false,
         }}
       />
       
-      {/* Map View */}
       <MapViewComponent
         userLocation={userLocation}
         selectedLocation={selectedLocation}
@@ -316,11 +307,10 @@ export default function TabOneScreen() {
         onRegionChangeComplete={setRegion}
       />
       
-      {/* Bottom Sheet */}
       <LocationBottomSheet
         bottomSheetRef={bottomSheetRef}
-        snapPoints={snapPoints}
-        onSheetChanges={handleSheetChanges}
+        snapPoints={['25%', '50%', '75%']}
+        onSheetChanges={() => {}}
         selectedLocation={selectedLocation}
         locations={filteredLocations}
         filters={filters}
@@ -343,10 +333,12 @@ export default function TabOneScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    position: 'relative',
+    backgroundColor: '#fff',
+  },
+  mapContainer: {
+    flex: 1,
   },
   headerButton: {
-    padding: 8,
-    marginRight: 8,
+    marginRight: 15,
   },
 }); 

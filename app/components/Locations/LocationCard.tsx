@@ -1,7 +1,6 @@
 import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import CheckInButton from '../BottomSheet/CheckInButton';
 import { NearbyLocation } from '@/app/types/location';
 
 export type LocationCardProps = {
@@ -126,12 +125,6 @@ export const LocationCard: React.FC<LocationCardProps> = ({
         </View>
         
       </View>
-      <View style={styles.checkInButtonContainer}>
-            <CheckInButton 
-              location={location} 
-              isDark={isDark} 
-            />
-          </View>
     </TouchableOpacity>
   );
 };
@@ -203,10 +196,6 @@ const styles = StyleSheet.create({
   detailText: {
     fontSize: 12,
     marginLeft: 4,
-  },
-  checkInButtonContainer: {
-    marginLeft: 'auto',
-    justifyContent: 'center',
   },
 }); 
 

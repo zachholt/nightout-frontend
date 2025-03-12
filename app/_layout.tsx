@@ -12,6 +12,7 @@ import { StyleSheet } from 'react-native';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { queryClient } from '@/config/queryClient';
 import { RouteProvider } from './context/RouteContext';
+import { UserProvider } from './context/UserContext';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -35,15 +36,17 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={styles.container}>
       <QueryClientProvider client={queryClient}>
-        <RouteProvider>
-          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-            <Stack>
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="+not-found" />
-            </Stack>
-            <StatusBar style="auto" />
-          </ThemeProvider>
-        </RouteProvider>
+        <UserProvider>
+          <RouteProvider>
+            <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+              <Stack>
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="+not-found" />
+              </Stack>
+              <StatusBar style="auto" />
+            </ThemeProvider>
+          </RouteProvider>
+        </UserProvider>
       </QueryClientProvider>
     </GestureHandlerRootView>
   );
