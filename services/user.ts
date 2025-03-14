@@ -32,12 +32,27 @@ export const userApi = {
 
   // Check in at a location
   checkIn: async (email: string, latitude: number, longitude: number): Promise<UserResponse> => {
-    const response = await axios.post(
-      `${API_URL}/users/checkin`, 
-      { latitude, longitude },
-      { params: { email } }
-    );
-    return response.data;
+    try {
+      console.log('Sending check-in request:', { email, latitude, longitude });
+      
+      const response = await axios.post(
+        `${API_URL}/users/checkin`, 
+        { latitude, longitude },
+        { 
+          params: { email },
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          }
+        }
+      );
+      
+      console.log('Check-in response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Check-in API error:', error);
+      throw error;
+    }
   },
 
   // Get users at specific coordinates
