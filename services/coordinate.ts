@@ -24,7 +24,7 @@ export const coordinateApi = {
       console.log('Sending check-in request:', { email, latitude, longitude });
       
       const response = await axios.post(
-        `${API_URL}/coordinates/check-in`, 
+        `${API_URL}/users/checkin`, 
         { latitude, longitude },
         { 
           params: { email },
@@ -48,19 +48,34 @@ export const coordinateApi = {
     try {
       console.log('Sending check-out request for email:', email);
       
-      const response = await axios.post(
-        `${API_URL}/coordinates/check-out`, 
-        null,
+      // Use GET request with null coordinates instead of POST
+      const response = await axios.get(
+        `${API_URL}/users/me`, 
         { 
           params: { email },
           headers: {
-            'Content-Type': 'application/json',
             'Accept': 'application/json'
           }
         }
       );
       
-      console.log('Check-out response:', response.data);
+      // After getting the user, update with null coordinates
+      if (response.data) {
+        const updateResponse = await axios.post(
+          `${API_URL}/users/checkin`,
+          { latitude: null, longitude: null },
+          {
+            params: { email },
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            }
+          }
+        );
+        console.log('Check-out response:', updateResponse.data);
+        return updateResponse.data;
+      }
+      
       return response.data;
     } catch (error) {
       console.error('Check-out API error:', error);

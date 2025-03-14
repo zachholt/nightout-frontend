@@ -30,7 +30,7 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const { currentRoute } = useRoute();
-  const { user, checkIn, isLoading: isCheckingIn } = useUser();
+  const { user, checkIn, checkOut, isCheckedInAt, isLoading: isCheckingIn } = useUser();
   const scrollY = useRef(new Animated.Value(0)).current;
   const [isScrolled, setIsScrolled] = useState(false);
   
@@ -81,24 +81,34 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
     }
   };
 
-  // Handle check-in
-  const handleCheckIn = async () => {
+  // Handle check-in or check-out
+  const handleCheckInOut = async () => {
     if (!user) {
       Alert.alert('Sign In Required', 'Please sign in to check in at this location.');
       return;
     }
 
     try {
-      // Check in with location coordinates
-      await checkIn({
+      const isAlreadyCheckedIn = isCheckedInAt({
         latitude: location.location.latitude,
         longitude: location.location.longitude,
       });
-      
-      Alert.alert('Success', 'You have checked in at this location!');
+
+      if (isAlreadyCheckedIn) {
+        // Check out
+        await checkOut();
+        Alert.alert('Success', 'You have checked out from this location!');
+      } else {
+        // Check in with location coordinates
+        await checkIn({
+          latitude: location.location.latitude,
+          longitude: location.location.longitude,
+        });
+        Alert.alert('Success', 'You have checked in at this location!');
+      }
     } catch (err) {
-      Alert.alert('Error', 'Failed to check in. Please try again.');
-      console.error('Check-in error:', err);
+      Alert.alert('Error', 'Failed to update check-in status. Please try again.');
+      console.error('Check-in/out error:', err);
     }
   };
   
@@ -130,6 +140,12 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
     extrapolate: 'clamp',
   });
   
+  // Determine if user is checked in at this location
+  const isCheckedIn = user && isCheckedInAt({
+    latitude: location.location.latitude,
+    longitude: location.location.longitude,
+  });
+
   return (
     <>
       {/* Initial Header */}
@@ -145,23 +161,34 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
         </Text>
         
         <View style={styles.headerButtonsContainer}>
-          {/* Check-in Button in Header */}
+          {/* Check-in/Check-out Button in Header */}
           {user && (
             <TouchableOpacity
               style={[
                 styles.headerActionButton,
-                { backgroundColor: isCheckingIn ? '#888' : '#4CD964' }
+                { 
+                  backgroundColor: isCheckingIn 
+                    ? '#888' 
+                    : isCheckedIn 
+                      ? '#FF3B30' // Red for check-out
+                      : '#4CD964'  // Green for check-in
+                }
               ]}
-              onPress={handleCheckIn}
+              onPress={handleCheckInOut}
               disabled={isCheckingIn}
             >
               <Ionicons
-                name="location"
+                name={isCheckedIn ? "exit-outline" : "location"}
                 size={18}
                 color="#fff"
               />
               <Text style={styles.headerActionButtonText}>
-                {isCheckingIn ? 'Checking In...' : 'Check In'}
+                {isCheckingIn 
+                  ? 'Processing...' 
+                  : isCheckedIn 
+                    ? 'Check Out' 
+                    : 'Check In'
+                }
               </Text>
             </TouchableOpacity>
           )}

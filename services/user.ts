@@ -10,11 +10,7 @@ export interface UserResponse {
   profileImage: string;
   latitude: number | null;
   longitude: number | null;
-}
-
-export interface CheckInRequest {
-  latitude: number;
-  longitude: number;
+  isCheckedIn: boolean;
 }
 
 export const userApi = {
@@ -27,44 +23,6 @@ export const userApi = {
   // Get user by ID
   getUserById: async (id: number): Promise<UserResponse> => {
     const response = await axios.get(`${API_URL}/users/${id}`);
-    return response.data;
-  },
-
-  // Check in at a location
-  checkIn: async (email: string, latitude: number, longitude: number): Promise<UserResponse> => {
-    try {
-      console.log('Sending check-in request:', { email, latitude, longitude });
-      
-      const response = await axios.post(
-        `${API_URL}/users/checkin`, 
-        { latitude, longitude },
-        { 
-          params: { email },
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          }
-        }
-      );
-      
-      console.log('Check-in response:', response.data);
-      return response.data;
-    } catch (error) {
-      console.error('Check-in API error:', error);
-      throw error;
-    }
-  },
-
-  // Get users at specific coordinates
-  getUsersByCoordinates: async (
-    latitude: number, 
-    longitude: number, 
-    radiusInMeters: number = 500
-  ): Promise<UserResponse[]> => {
-    const response = await axios.get(
-      `${API_URL}/users/by-coordinates`, 
-      { params: { latitude, longitude, radiusInMeters } }
-    );
     return response.data;
   }
 };
