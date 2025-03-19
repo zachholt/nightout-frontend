@@ -33,11 +33,61 @@ export function SignedInView({ colors, user, handleSignOut }: SignedInViewProps)
     router.push('/favorites');
   };
 
+  const takePicture = async () => {
+    if (cameraRef) {
+      try {
+        const photo = await cameraRef.takePictureAsync({ base64: true });
+        console.log('photo', photo);
+        if (photo && photo.base64) {
+          console.log('Base64 Image:', photo.base64);
+          try {
+            await updateProfilePicture(photo.base64);
+            Alert.alert("Success", "Profile picture updated successfully!");
+          } catch (err) {
+            Alert.alert("Error", "Failed to update profile picture.");
+            console.error('Image processing error:', err);
+          }
+        }
+        setCameraVisible(false);
+      } catch (error) {
+        console.error('Error taking picture:', error);
+        Alert.alert("Error", "Failed to take picture.");
+        setCameraVisible(false);
+      }
+    }
+  };
+
+  if (!permission?.granted) {
+    return (
+      <View style={styles.container}>
+        <Text>We need your permission to show the camera</Text>
+        <TouchableOpacity onPress={requestPermission} style={styles.permissionButton}>
+          <Text style={styles.permissionButtonText}>Grant Permission</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (cameraVisible) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <CameraView style={styles.camera} ref={ref => setCameraRef(ref)}>
+          <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
+            <Ionicons name="camera" size={24} color="white" />
+          </TouchableOpacity>
+        </CameraView>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.profileSection}>
         <View style={styles.profileInfo}>
-          <View style={[styles.avatarContainer, { backgroundColor: colors.buttonBackground }]}>
+          <TouchableOpacity 
+            style={[styles.avatarContainer, { backgroundColor: colors.buttonBackground }]}
+            onPress={() => setCameraVisible(true)}
+          >
             {user.profileImage ? (
               <Image
                 source={{ uri: user.profileImage }}
@@ -46,7 +96,7 @@ export function SignedInView({ colors, user, handleSignOut }: SignedInViewProps)
             ) : (
               <Ionicons name="person" size={32} color={colors.text} />
             )}
-          </View>
+          </TouchableOpacity>
           <View style={styles.userInfo}>
             <Text style={[styles.userName, { color: colors.text }]}>{user.name}</Text>
             <Text style={[styles.userEmail, { color: colors.secondaryText }]}>{user.email}</Text>
@@ -78,89 +128,30 @@ export function SignedInView({ colors, user, handleSignOut }: SignedInViewProps)
           </Text>
           <Ionicons name="chevron-forward" size={24} color={colors.secondaryText} />
         </TouchableOpacity>
-
-  const takePicture = async () => {
-    if (cameraRef) {
-      const photo = await cameraRef.takePictureAsync({ base64: true });
-      console.log('photo',photo);
-      if (photo.base64) {
-        console.log('Base64 Image:', photo.base64);;
-        try {
-          await updateProfilePicture(photo.base64);
-          Alert.alert("Success", "Profile picture updated successfully!");
-        } catch (err) {
-          Alert.alert("Error", "Failed to update profile picture.");
-          console.error('Image processing error:', err);
-        }
-      }
-      setCameraVisible(false);
-    }
-  };
-
-  if (!permission?.granted) {
-    return (
-      <View style={styles.container}>
-        <Text>We need your permission to show the camera</Text>
-        <TouchableOpacity onPress={requestPermission} style={styles.permissionButton}>
-          <Text style={styles.permissionButtonText}>Grant Permission</Text>
+        
+        <TouchableOpacity 
+          style={[styles.menuItem, { backgroundColor: colors.buttonBackground }]}
+        >
+          <Ionicons name="map-outline" size={24} color={colors.text} />
+          <Text style={[styles.menuItemText, { color: colors.text }]}>My Routes</Text>
+          <Ionicons name="chevron-forward" size={24} color={colors.secondaryText} />
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[styles.menuItem, { backgroundColor: colors.buttonBackground }]}
+        >
+          <Ionicons name="settings-outline" size={24} color={colors.text} />
+          <Text style={[styles.menuItemText, { color: colors.text }]}>Settings</Text>
+          <Ionicons name="chevron-forward" size={24} color={colors.secondaryText} />
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[styles.signOutButton, { backgroundColor: colors.buttonBackground }]}
+          onPress={handleSignOut}
+        >
+          <Text style={[styles.signOutButtonText, { color: '#FF3B30' }]}>Sign Out</Text>
         </TouchableOpacity>
       </View>
-    );
-  }
-
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {cameraVisible ? (
-        <CameraView style={styles.camera} ref={ref => setCameraRef(ref)}>
-          <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
-            <Ionicons name="camera" size={24} color="white" />
-          </TouchableOpacity>
-        </CameraView>
-      ) : (
-        <>
-          <View style={styles.profileHeader}>
-            <TouchableOpacity onPress={() => setCameraVisible(true)}>
-              <Image
-                source={{ uri: user.profileImage || 'https://via.placeholder.com/100' }}
-                style={styles.avatar}
-              />
-              <Text style={[styles.addPhotoText, { color: colors.accent }]}>Add Profile Picture</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.userInfo}>
-            <Text style={[styles.userName, { color: colors.text }]}>{user.name || 'User'}</Text>
-            <Text style={[styles.userEmail, { color: colors.secondaryText }]}>{user.email}</Text>
-          </View>
-          {error && (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          )}
-          <View style={styles.menuContainer}>
-            <TouchableOpacity style={[styles.menuItem, { backgroundColor: colors.buttonBackground }]}>
-              <Ionicons name="heart-outline" size={24} color={colors.text} />
-              <Text style={[styles.menuItemText, { color: colors.text }]}>Favorite Places</Text>
-              <Ionicons name="chevron-forward" size={24} color={colors.secondaryText} />
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.menuItem, { backgroundColor: colors.buttonBackground }]}>
-              <Ionicons name="map-outline" size={24} color={colors.text} />
-              <Text style={[styles.menuItemText, { color: colors.text }]}>My Routes</Text>
-              <Ionicons name="chevron-forward" size={24} color={colors.secondaryText} />
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.menuItem, { backgroundColor: colors.buttonBackground }]}>
-              <Ionicons name="settings-outline" size={24} color={colors.text} />
-              <Text style={[styles.menuItemText, { color: colors.text }]}>Settings</Text>
-              <Ionicons name="chevron-forward" size={24} color={colors.secondaryText} />
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.signOutButton, { backgroundColor: colors.buttonBackground }]}
-              onPress={handleSignOut}
-            >
-              <Text style={[styles.signOutButtonText, { color: '#FF3B30' }]}>Sign Out</Text>
-            </TouchableOpacity>
-          </View>
-        </>
-      )}
     </View>
   );
 }
@@ -184,19 +175,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
-  }
+  },
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
   },
   addPhotoText: {
     marginTop: 8,
     fontSize: 16,
   },
   userInfo: {
-    alignItems: 'center',
-    marginBottom: 16,
+    flex: 1,
   },
   userName: {
     fontSize: 20,
@@ -250,20 +240,21 @@ const styles = StyleSheet.create({
   },
   captureButton: {
     position: 'absolute',
-    bottom: 20,
+    bottom: 30,
     alignSelf: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 30,
     padding: 15,
-    borderRadius: 50,
   },
   permissionButton: {
     marginTop: 20,
-    padding: 10,
     backgroundColor: '#007AFF',
-    borderRadius: 5,
+    padding: 12,
+    borderRadius: 8,
   },
   permissionButtonText: {
-    color: '#FFFFFF',
+    color: 'white',
     fontSize: 16,
-  },
+    textAlign: 'center',
+  }
 });

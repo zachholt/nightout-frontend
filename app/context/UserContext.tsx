@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { userApi } from '@/services/user';
 import * as Location from 'expo-location';
 import { saveUserToStorage, getUserFromStorage, clearAuthStorage } from '../utils/storageUtils';
