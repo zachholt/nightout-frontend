@@ -1,7 +1,6 @@
 import axios from 'axios';
 import { getAuthToken } from '@/app/utils/storageUtils';
-
-const API_URL = 'http://44.203.161.109:8080/api';
+import { API_URL } from '../config/api';
 
 // Configure axios to use the stored token for all requests
 axios.interceptors.request.use(

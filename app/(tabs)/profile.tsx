@@ -6,11 +6,12 @@ import { authApi, type AuthResponse } from '@/services/auth';
 import { SignedOutView } from './components/SignedOutView';
 import { SignedInView } from './components/SignedInView';
 import { useUser, User } from '../context/UserContext';
+import { saveAuthToken } from '../utils/storageUtils';
 
 export default function ProfileScreen() {
   const queryClient = useQueryClient();
   const colorScheme = useColorScheme();
-  const { user, setUser } = useUser();
+  const { user, setUser, logout } = useUser();
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -41,10 +42,16 @@ export default function ProfileScreen() {
         email: data.email,
         createdAt: new Date().toISOString(),
         profileImage: 'https://via.placeholder.com/150',
-        coordinates: '0,0',
+        latitude: null,
+        longitude: null,
       };
       setUser(userData);
       setIsSignedIn(true);
+      
+      // Save auth token if available
+      if (data.token) {
+        saveAuthToken(data.token);
+      }
       
       // Clear the form
       setEmail('');
@@ -64,10 +71,16 @@ export default function ProfileScreen() {
         email: data.email,
         createdAt: new Date().toISOString(),
         profileImage: 'https://via.placeholder.com/150',
-        coordinates: '0,0',
+        latitude: null,
+        longitude: null,
       };
       setUser(userData);
       setIsSignedIn(true);
+      
+      // Save auth token if available
+      if (data.token) {
+        saveAuthToken(data.token);
+      }
       
       // Clear the form
       setName('');
@@ -76,20 +89,6 @@ export default function ProfileScreen() {
     },
     onError: (error: any) => {
       Alert.alert('Error', error.response?.data?.message || 'Failed to create account');
-    },
-  });
-
-  const logoutMutation = useMutation({
-    mutationFn: authApi.logout,
-    onSuccess: () => {
-      setUser(null);
-      setIsSignedIn(false);
-      setEmail('');
-      setPassword('');
-      queryClient.clear();
-    },
-    onError: (error: any) => {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to sign out');
     },
   });
 
@@ -106,7 +105,8 @@ export default function ProfileScreen() {
   };
 
   const handleSignOut = () => {
-    logoutMutation.mutate();
+    logout();
+    queryClient.clear();
   };
 
   return (

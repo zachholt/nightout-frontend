@@ -1,3 +1,4 @@
+import React from 'react';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
@@ -7,21 +8,49 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View, ActivityIndicator } from 'react-native';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { queryClient } from '@/config/queryClient';
 import { RouteProvider } from './context/RouteContext';
-import { UserProvider } from './context/UserContext';
+import { UserProvider, useUser } from './context/UserContext';
+import { FavoriteProvider } from './context/FavoriteContext';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
+// App content with loading state
+function AppContent() {
+  const { isLoading } = useUser();
+  const colorScheme = useColorScheme();
+  
+  // Always render the ThemeProvider and Stack components
+  return (
+    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+        </View>
+      ) : (
+        <>
+          <Stack>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="+not-found" />
+          </Stack>
+          <StatusBar style="auto" />
+        </>
+      )}
+    </ThemeProvider>
+  );
+}
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const [loaded] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-  });
+  const [loaded, error] = useFonts({});
+
+  useEffect(() => {
+    if (error) throw error;
+  }, [error]);
 
   useEffect(() => {
     if (loaded) {
@@ -30,30 +59,36 @@ export default function RootLayout() {
   }, [loaded]);
 
   if (!loaded) {
-    return null;
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
   }
 
   return (
-    <GestureHandlerRootView style={styles.container}>
+    <GestureHandlerRootView style={{ flex: 1 }}>
       <QueryClientProvider client={queryClient}>
-        <UserProvider>
-          <RouteProvider>
-            <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-              <Stack>
-                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen name="+not-found" />
-              </Stack>
-              <StatusBar style="auto" />
-            </ThemeProvider>
-          </RouteProvider>
-        </UserProvider>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <UserProvider>
+            <RouteProvider>
+              <FavoriteProvider>
+                <Stack>
+                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                </Stack>
+              </FavoriteProvider>
+            </RouteProvider>
+          </UserProvider>
+        </ThemeProvider>
       </QueryClientProvider>
     </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  loadingContainer: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
