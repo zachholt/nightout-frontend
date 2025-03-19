@@ -92,6 +92,12 @@ const MapViewComponent: React.FC<MapViewComponentProps> = ({
     fetchRoute();
   }, [userLocation, selectedLocation]);
 
+  useEffect(() => {
+    if (!selectedLocation) {
+      setRouteCoordinates([]);
+    }
+  }, [selectedLocation]);
+
   return (
     <View style={styles.mapContainer}>
       <MapView
