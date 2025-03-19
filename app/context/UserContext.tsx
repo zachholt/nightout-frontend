@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import { userApi } from '@/services/user';
-import * as Location from 'expo-location';
+import * as FileSystem from 'expo-file-system';
 
 export interface User {
   id: number;
@@ -8,7 +8,6 @@ export interface User {
   email: string;
   createdAt: string;
   profileImage: string;
-  // Replace string coordinates with numeric latitude and longitude
   latitude: number | null;
   longitude: number | null;
 }
@@ -20,6 +19,7 @@ interface UserContextType {
   error: string | null;
   checkIn: (location: { latitude: number; longitude: number }) => Promise<void>;
   getUsersByLocation: (latitude: number, longitude: number, radiusInMeters?: number) => Promise<User[]>;
+  updateProfilePicture: (imageUri: string) => Promise<void>; // New function for updating profile picture
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -75,6 +75,38 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Update profile picture
+  const updateProfilePicture = async (base64Image: string) => {
+    if (!user) {
+      setError('You must be logged in to update your profile picture.');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Log the base64 image to confirm it's captured correctly
+      console.log('Base64 Image:', base64Image);
+      // Send the base64 image to the backend
+      // const updatedUser = await userApi.updateProfilePicture(user.email, base64Image);
+
+      // For testing purposes, simulate an updated user object
+      const updatedUser = {
+        ...user,
+        profileImage: `data:image/jpg;base64,${base64Image}`, // Update the profile image locally
+      };
+
+      // Update the user state with the new profile picture
+      setUser(updatedUser);
+    } catch (err) {
+      setError('Failed to update profile picture. Please try again.');
+      console.error('Update profile picture error:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <UserContext.Provider
       value={{
@@ -84,6 +116,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         error,
         checkIn,
         getUsersByLocation,
+        updateProfilePicture, // Add the new function to the context
       }}
     >
       {children}
