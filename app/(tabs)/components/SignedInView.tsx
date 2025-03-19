@@ -1,6 +1,8 @@
 import { StyleSheet, View, Text, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useUser, User } from '../../context/UserContext';
+import { useFavorite } from '../../context/FavoriteContext';
+import { useRouter } from 'expo-router';
 
 interface SignedInViewProps {
   colors: {
@@ -18,23 +20,31 @@ interface SignedInViewProps {
 
 export function SignedInView({ colors, user, handleSignOut }: SignedInViewProps) {
   const { error } = useUser();
-  
+  const { favorites } = useFavorite();
+  const router = useRouter();
+
+  const handleFavoritesPress = () => {
+    router.push('/favorites');
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.profileHeader}>
-        <View style={styles.avatarContainer}>
-          <Image
-            source={{ uri: user.profileImage || 'https://via.placeholder.com/100' }}
-            style={styles.avatar}
-          />
-        </View>
-        <View style={styles.userInfo}>
-          <Text style={[styles.userName, { color: colors.text }]}>
-            {user.name || 'User'}
-          </Text>
-          <Text style={[styles.userEmail, { color: colors.secondaryText }]}>
-            {user.email}
-          </Text>
+      <View style={styles.profileSection}>
+        <View style={styles.profileInfo}>
+          <View style={[styles.avatarContainer, { backgroundColor: colors.buttonBackground }]}>
+            {user.profileImage ? (
+              <Image
+                source={{ uri: user.profileImage }}
+                style={styles.avatar}
+              />
+            ) : (
+              <Ionicons name="person" size={32} color={colors.text} />
+            )}
+          </View>
+          <View style={styles.userInfo}>
+            <Text style={[styles.userName, { color: colors.text }]}>{user.name}</Text>
+            <Text style={[styles.userEmail, { color: colors.secondaryText }]}>{user.email}</Text>
+          </View>
         </View>
       </View>
 
@@ -47,9 +57,19 @@ export function SignedInView({ colors, user, handleSignOut }: SignedInViewProps)
       )}
 
       <View style={styles.menuContainer}>
-        <TouchableOpacity style={[styles.menuItem, { backgroundColor: colors.buttonBackground }]}>
+        <TouchableOpacity 
+          style={[styles.menuItem, { backgroundColor: colors.buttonBackground }]}
+          onPress={handleFavoritesPress}
+        >
           <Ionicons name="heart-outline" size={24} color={colors.text} />
-          <Text style={[styles.menuItemText, { color: colors.text }]}>Favorite Places</Text>
+          <Text style={[styles.menuItemText, { color: colors.text }]}>
+            Favorite Places
+            {favorites.length > 0 && (
+              <Text style={[styles.favoritesCount, { color: colors.secondaryText }]}>
+                {' '}({favorites.length})
+              </Text>
+            )}
+          </Text>
           <Ionicons name="chevron-forward" size={24} color={colors.secondaryText} />
         </TouchableOpacity>
 
@@ -81,32 +101,36 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
-  profileHeader: {
+  profileSection: {
+    marginBottom: 24,
+  },
+  profileInfo: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 32,
   },
   avatarContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    marginBottom: 16,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
   },
   avatar: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 50,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
   },
   userInfo: {
-    alignItems: 'center',
+    flex: 1,
   },
   userName: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 20,
+    fontWeight: '600',
     marginBottom: 4,
   },
   userEmail: {
-    fontSize: 16,
-    marginBottom: 8,
+    fontSize: 14,
   },
   errorContainer: {
     marginTop: 16,
@@ -120,23 +144,27 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   menuContainer: {
-    gap: 12,
+    marginTop: 8,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
     borderRadius: 12,
+    marginBottom: 8,
   },
   menuItemText: {
     flex: 1,
     fontSize: 16,
     marginLeft: 12,
   },
+  favoritesCount: {
+    fontSize: 14,
+  },
   signOutButton: {
-    marginTop: 24,
     padding: 16,
     borderRadius: 12,
+    marginTop: 16,
     alignItems: 'center',
   },
   signOutButtonText: {

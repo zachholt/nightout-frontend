@@ -10,12 +10,14 @@ import {
   Animated,
   Platform,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import { NearbyLocation } from '../../types/location';
 import { useRoute, RouteLocation } from '../../context/RouteContext';
 import { useUser } from '../../context/UserContext';
+import { useFavorite } from '../../context/FavoriteContext';
 import { getLocationIcon, getLocationTypeName } from '../../utils/locationUtils';
 import * as Location from 'expo-location';
 
@@ -30,13 +32,17 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const { currentRoute } = useRoute();
-  const { user, checkIn, isLoading: isCheckingIn } = useUser();
+  const { user, checkIn, checkOut, isCheckedInAt, isCheckingIn } = useUser();
+  const { isFavorite, addFavorite, removeFavorite, error: favoriteError } = useFavorite();
   const scrollY = useRef(new Animated.Value(0)).current;
   const [isScrolled, setIsScrolled] = useState(false);
+  const [isFavoriting, setIsFavoriting] = useState(false);
   
   const { height, width } = Dimensions.get('window');
   
   const isInRoute = currentRoute.some(item => item.id === location.id);
+  const isUserCheckedIn = user && isCheckedInAt(location.location);
+  const isLocationFavorite = isFavorite(location.id);
   
   const formatPhoneNumber = (phone: string | undefined) => {
     if (!phone) return 'Not available';
@@ -81,24 +87,30 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
     }
   };
 
-  // Handle check-in
-  const handleCheckIn = async () => {
+  // Handle check-in or check-out
+  const handleCheckInOut = async () => {
     if (!user) {
       Alert.alert('Sign In Required', 'Please sign in to check in at this location.');
       return;
     }
 
     try {
-      // Check in with location coordinates
-      await checkIn({
-        latitude: location.location.latitude,
-        longitude: location.location.longitude,
-      });
-      
-      Alert.alert('Success', 'You have checked in at this location!');
+      if (isUserCheckedIn) {
+        // Check out
+        await checkOut();
+        Alert.alert('Success', 'You have checked out from this location!');
+      } else {
+        // Check in
+        await checkIn(
+          location.location.latitude,
+          location.location.longitude
+        );
+        Alert.alert('Success', 'You have checked in at this location!');
+      }
     } catch (err) {
-      Alert.alert('Error', 'Failed to check in. Please try again.');
-      console.error('Check-in error:', err);
+      const action = isUserCheckedIn ? 'check out' : 'check in';
+      Alert.alert('Error', `Failed to ${action}. Please try again.`);
+      console.error(`${action} error:`, err);
     }
   };
   
@@ -130,6 +142,27 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
     extrapolate: 'clamp',
   });
   
+  const handleFavoriteToggle = async () => {
+    if (!user) {
+      Alert.alert('Sign In Required', 'Please sign in to favorite locations.');
+      return;
+    }
+
+    try {
+      setIsFavoriting(true);
+      if (isLocationFavorite) {
+        await removeFavorite(location.id);
+      } else {
+        await addFavorite(location);
+      }
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+      Alert.alert('Error', favoriteError || 'Failed to update favorite status. Please try again.');
+    } finally {
+      setIsFavoriting(false);
+    }
+  };
+  
   return (
     <>
       {/* Initial Header */}
@@ -145,23 +178,57 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
         </Text>
         
         <View style={styles.headerButtonsContainer}>
-          {/* Check-in Button in Header */}
+          {/* Favorite Button */}
           {user && (
             <TouchableOpacity
               style={[
                 styles.headerActionButton,
-                { backgroundColor: isCheckingIn ? '#888' : '#4CD964' }
+                { 
+                  backgroundColor: isDark ? '#333' : '#f0f0f0',
+                  marginRight: 8,
+                  opacity: isFavoriting ? 0.5 : 1,
+                }
               ]}
-              onPress={handleCheckIn}
+              onPress={handleFavoriteToggle}
+              disabled={isFavoriting}
+            >
+              {isFavoriting ? (
+                <ActivityIndicator size="small" color={isDark ? '#fff' : '#000'} />
+              ) : (
+                <Ionicons
+                  name={isLocationFavorite ? "heart" : "heart-outline"}
+                  size={18}
+                  color={isLocationFavorite ? '#FF3B30' : (isDark ? '#fff' : '#000')}
+                />
+              )}
+            </TouchableOpacity>
+          )}
+          
+          {/* Check-in/Check-out Button in Header */}
+          {user && (
+            <TouchableOpacity
+              style={[
+                styles.headerActionButton,
+                { 
+                  backgroundColor: isCheckingIn 
+                    ? '#888' 
+                    : isUserCheckedIn 
+                      ? '#FF9500' // Orange for check-out
+                      : '#4CD964'  // Green for check-in
+                }
+              ]}
+              onPress={handleCheckInOut}
               disabled={isCheckingIn}
             >
               <Ionicons
-                name="location"
+                name={isUserCheckedIn ? "exit-outline" : "location"}
                 size={18}
                 color="#fff"
               />
               <Text style={styles.headerActionButtonText}>
-                {isCheckingIn ? 'Checking In...' : 'Check In'}
+                {isCheckingIn 
+                  ? (isUserCheckedIn ? 'Checking Out...' : 'Checking In...') 
+                  : (isUserCheckedIn ? 'Check Out' : 'Check In')}
               </Text>
             </TouchableOpacity>
           )}

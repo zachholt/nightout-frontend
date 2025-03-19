@@ -1,6 +1,5 @@
 import axios from 'axios';
-
-const API_URL = 'http://44.203.161.109:8080/api';
+import { API_URL } from '../config/api';
 
 export interface UserResponse {
   id: number;
@@ -10,11 +9,6 @@ export interface UserResponse {
   profileImage: string;
   latitude: number | null;
   longitude: number | null;
-}
-
-export interface CheckInRequest {
-  latitude: number;
-  longitude: number;
 }
 
 export const userApi = {
@@ -62,4 +56,4 @@ export const userApi = {
     );
     return response.data;
   }
-};
+}; 

@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, useColorScheme } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NearbyLocation } from '@/app/types/location';
+import { useUser } from '@/app/context/UserContext';
 
 export type LocationCardProps = {
   location: NearbyLocation;
@@ -13,6 +14,8 @@ export type LocationCardProps = {
   isOpenNow?: boolean;
   rating?: number;
   isInRoute?: boolean;
+  userCount?: number;
+  isAuthenticated?: boolean;
   onPress: () => void;
   openingHours?: string[];
 };
@@ -27,11 +30,16 @@ export const LocationCard: React.FC<LocationCardProps> = ({
   isOpenNow,
   rating,
   isInRoute = false,
+  userCount = 0,
+  isAuthenticated = false,
   onPress,
   openingHours,
 }) => {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const { user, isCheckedInAt } = useUser();
+  
+  const isUserCheckedIn = user && isCheckedInAt(location.location);
   
   const cardBackground = isDark ? '#2C2C2E' : '#F5F5F5';
   const textColor = isDark ? '#FFFFFF' : '#000000';
@@ -78,12 +86,28 @@ export const LocationCard: React.FC<LocationCardProps> = ({
           <Text style={[styles.name, { color: textColor }]} numberOfLines={1}>
             {name}
           </Text>
-          {isInRoute && (
-            <View style={styles.routeIndicator}>
-              <Ionicons name="checkmark-circle" size={16} color="#4CD964" />
-              <Text style={styles.routeIndicatorText}>In Route</Text>
-            </View>
-          )}
+          <View style={styles.indicatorsContainer}>
+            {/* Always show user count if authenticated */}
+            {isAuthenticated && (
+              <View style={[
+                styles.userCountPill,
+                { backgroundColor: userCount > 0 ? '#007AFF' : (isDark ? '#3A3A3C' : '#D1D1D6') }
+              ]}>
+                <Ionicons 
+                  name={userCount > 0 ? "people" : "people-outline"} 
+                  size={14} 
+                  color="#FFFFFF" 
+                />
+                <Text style={styles.userCountText}>{userCount}</Text>
+              </View>
+            )}
+            {isInRoute && (
+              <View style={styles.routeIndicator}>
+                <Ionicons name="checkmark-circle" size={16} color="#4CD964" />
+                <Text style={styles.routeIndicatorText}>In Route</Text>
+              </View>
+            )}
+          </View>
         </View>
         <Text style={[styles.address, { color: subtextColor }]} numberOfLines={1}>
           {address}
@@ -120,6 +144,14 @@ export const LocationCard: React.FC<LocationCardProps> = ({
               <Text style={[styles.detailText, { color: subtextColor }]}>
                 {rating.toFixed(1)}
               </Text>
+            </View>
+          )}
+          
+          {/* You're Here Badge */}
+          {isUserCheckedIn && (
+            <View style={styles.checkedInBadge}>
+              <Ionicons name="checkmark-circle" size={12} color="#fff" />
+              <Text style={styles.checkedInText}>You're Here</Text>
             </View>
           )}
         </View>
@@ -166,6 +198,10 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 8,
   },
+  indicatorsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   routeIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -179,6 +215,20 @@ const styles = StyleSheet.create({
     color: '#4CD964',
     fontWeight: '500',
     marginLeft: 2,
+  },
+  userCountPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    marginRight: 6,
+  },
+  userCountText: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    fontWeight: '600',
+    marginLeft: 4,
   },
   address: {
     fontSize: 14,
@@ -196,6 +246,21 @@ const styles = StyleSheet.create({
   detailText: {
     fontSize: 12,
     marginLeft: 4,
+  },
+  checkedInBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#4CD964',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginLeft: 'auto', // Push to the right
+  },
+  checkedInText: {
+    fontSize: 10,
+    color: '#FFFFFF',
+    fontWeight: '600',
+    marginLeft: 2,
   },
 }); 
 
