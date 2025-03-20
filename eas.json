@@ -1,0 +1,42 @@
+{
+  "cli": {
+    "version": ">= 5.9.1"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "resourceClass": "m-medium"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "ios": {
+        "resourceClass": "m-medium"
+      }
+    },
+    "production": {
+      "ios": {
+        "resourceClass": "m-medium"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "zacjac96@icloud.com",
+        "ascAppId": "6743496963",
+        "appleTeamId": "977EE3ZU57"
+      }
+    },
+    "preview": {
+      "ios": {
+        "appleId": "zacjac96@icloud.com",
+        "ascAppId": "6743496963",
+        "appleTeamId": "977EE3ZU57",
+        "sku": "com.zachholt.nightout.preview"
+      }
+    }
+  }
+} 
