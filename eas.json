@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 5.9.1"
+    "version": ">= 5.9.1",
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
@@ -13,12 +14,14 @@
     "preview": {
       "distribution": "internal",
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "credentialsSource": "remote"
       }
     },
     "production": {
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "credentialsSource": "remote"
       }
     }
   },
