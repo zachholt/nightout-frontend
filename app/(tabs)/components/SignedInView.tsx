@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useUser, User } from '../../context/UserContext';
 import { useFavorite } from '../../context/FavoriteContext';
 import { useRouter } from 'expo-router';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { CameraView, useCameraPermissions, CameraType} from 'expo-camera';
 import * as FileSystem from 'expo-file-system';
 
 interface SignedInViewProps {
@@ -25,6 +25,7 @@ export function SignedInView({ colors, user, handleSignOut }: SignedInViewProps)
   const { error, updateProfilePicture } = useUser();
   const [cameraVisible, setCameraVisible] = useState(false);
   const [cameraRef, setCameraRef] = useState<CameraView | null>(null);
+  const [cameraType, setCameraType] = useState<CameraType>('back'); // Default to back camera
   const [permission, requestPermission] = useCameraPermissions();
   const { favorites } = useFavorite();
   const router = useRouter();
@@ -57,6 +58,11 @@ export function SignedInView({ colors, user, handleSignOut }: SignedInViewProps)
     }
   };
 
+  const toggleCameraType = () => {
+    console.log('Toggling camera type. Current type:', cameraType); // Debugging
+    setCameraType((current) => (current === 'back' ? 'front' : 'back'));
+  };
+
   if (!permission?.granted) {
     return (
       <View style={styles.container}>
@@ -71,10 +77,15 @@ export function SignedInView({ colors, user, handleSignOut }: SignedInViewProps)
   if (cameraVisible) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <CameraView style={styles.camera} ref={ref => setCameraRef(ref)}>
-          <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
-            <Ionicons name="camera" size={24} color="white" />
-          </TouchableOpacity>
+        <CameraView style={styles.camera} ref={ref => setCameraRef(ref)} type={cameraType}>
+          <View style={styles.cameraControls}>
+            <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
+              <Ionicons name="camera" size={32} color="white" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.switchCameraButton} onPress={toggleCameraType}>
+              <Ionicons name="camera-reverse" size={32} color="white" />
+            </TouchableOpacity>
+          </View>
         </CameraView>
       </View>
     );
@@ -256,5 +267,14 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     textAlign: 'center',
-  }
+  },
+  cameraControls: {
+    position: 'absolute',
+    bottom: 30,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '80%', // Adjust width as needed
+  },
 });
