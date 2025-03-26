@@ -11,6 +11,7 @@ import {
   useColorScheme,
   ActivityIndicator,
   Keyboard,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,6 +23,10 @@ interface Message {
   isUser: boolean;
   timestamp: Date;
 }
+
+// Direct GenAI API URL
+const GENAI_API_URL = 'https://lisa-rest-2067001295.us-east-1.elb.amazonaws.com/v2/serve/chat/completions';
+const API_TOKEN = 'test_token';
 
 export default function ChatScreen() {
   const colorScheme = useColorScheme();
@@ -37,6 +42,7 @@ export default function ChatScreen() {
     },
   ]);
   const [isTyping, setIsTyping] = useState(false);
+  const [currentStreamedMessage, setCurrentStreamedMessage] = useState('');
   const scrollViewRef = useRef<ScrollView>(null);
 
   // Colors for the chat interface
@@ -55,50 +61,182 @@ export default function ChatScreen() {
     separator: isDark ? '#38383A' : '#E5E5EA',
   };
 
-  // Simulate AI response
-  const simulateResponse = (userMessage: string) => {
+  // Format messages for the GenAI API
+  const formatMessages = () => {
+    const formattedMessages = [];
+    
+    // Add system message
+    formattedMessages.push({
+      role: 'system',
+      content: 'You are the NightOut AI assistant, designed to help users find bars, restaurants, and entertainment venues. ' +
+               'You provide friendly, concise, and helpful information about nightlife options. ' +
+               'If asked about locations, always suggest specific places with details when possible.'
+    });
+    
+    // Add chat history
+    messages.forEach(message => {
+      formattedMessages.push({
+        role: message.isUser ? 'user' : 'assistant',
+        content: message.text
+      });
+    });
+    
+    return formattedMessages;
+  };
+
+  // Stream AI message directly from GenAI API
+  const streamAiResponse = async (userMessage: string) => {
     setIsTyping(true);
     
-    // Simulate typing delay
-    setTimeout(() => {
-      const responses = [
-        "I can help you find great bars and clubs in your area!",
-        "Looking for a specific type of venue? Let me know what you're in the mood for.",
-        "I can suggest popular routes that include multiple stops.",
-        "Would you like me to recommend places based on your current location?",
-        "I can help you plan a route with the best-rated venues in town."
-      ];
-      
-      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-      
-      const newMessage: Message = {
-        id: Date.now().toString(),
-        text: randomResponse,
+    try {
+      // Create a new message for streaming
+      const newMessageId = Date.now().toString();
+      const newMessage = {
+        id: newMessageId,
+        text: '',
         isUser: false,
         timestamp: new Date(),
       };
       
-      setMessages(prevMessages => [...prevMessages, newMessage]);
+      // Add user message to the chat
+      const userMsg = {
+        id: (Date.now() - 1).toString(),
+        text: userMessage,
+        isUser: true,
+        timestamp: new Date(),
+      };
+      
+      setMessages(prevMessages => [...prevMessages, userMsg, newMessage]);
+      
+      // Prepare direct GenAI API request
+      const requestBody = {
+        model: 'mistral-vllm',
+        temperature: null,
+        top_p: 0.01,
+        frequency_penalty: null,
+        presence_penalty: null,
+        max_tokens: null,
+        n: null,
+        stop: ['\nUser:', '\n User:', 'User:', 'User'],
+        stream: true,
+        seed: null,
+        stream_options: { include_usage: true },
+        messages: [
+          {
+            role: 'system',
+            content: 'You are the NightOut AI assistant, designed to help users find bars, restaurants, and entertainment venues. ' +
+                     'You provide friendly, concise, and helpful information about nightlife options. ' +
+                     'If asked about locations, always suggest specific places with details when possible.'
+          },
+          ...messages.map(msg => ({
+            role: msg.isUser ? 'user' : 'assistant',
+            content: msg.text
+          })),
+          {
+            role: 'user',
+            content: userMessage
+          }
+        ]
+      };
+      
+      console.log('Sending direct request to GenAI:', JSON.stringify(requestBody));
+      
+      // Use fetch with streaming
+      const response = await fetch(GENAI_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream',
+          'Authorization': API_TOKEN
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Network response was not ok: ${response.status} ${response.statusText}`);
+      }
+      
+      // Create reader for the stream
+      const reader = response.body?.getReader();
+      let accumulatedText = '';
+      
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) {
+            break;
+          }
+          
+          // Decode the chunk
+          const chunk = new TextDecoder().decode(value);
+          console.log('Received chunk:', chunk);
+          
+          // Process each line in the chunk
+          const lines = chunk.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('data:')) {
+              try {
+                // Extract the JSON part
+                const jsonStr = line.substring(5).trim();
+                
+                // Skip [DONE] message
+                if (jsonStr === '[DONE]') continue;
+                
+                const data = JSON.parse(jsonStr);
+                
+                // Extract content from the streaming response format
+                if (data.choices && data.choices.length > 0 && data.choices[0].delta) {
+                  const delta = data.choices[0].delta;
+                  if (delta.content) {
+                    // Append new content to accumulated text
+                    accumulatedText += delta.content;
+                    
+                    // Update message in the UI
+                    setMessages(prevMessages => 
+                      prevMessages.map(msg => 
+                        msg.id === newMessageId 
+                          ? { ...msg, text: accumulatedText } 
+                          : msg
+                      )
+                    );
+                  }
+                }
+              } catch (err) {
+                console.log('Error parsing SSE data:', line, err);
+              }
+            }
+          }
+        }
+      }
+      
+    } catch (error: any) {
+      console.error('Error fetching AI response:', error);
+      
+      // Add error message
+      setMessages(prevMessages => [...prevMessages, {
+        id: Date.now().toString(),
+        text: `Sorry, I encountered an error: ${error.message || 'Unknown error'}`,
+        isUser: false,
+        timestamp: new Date(),
+      }]);
+      
+      Alert.alert('Error', `Failed to connect to the AI service: ${error.message || 'Unknown error'}`);
+    } finally {
       setIsTyping(false);
-    }, 1500);
+      setCurrentStreamedMessage('');
+    }
   };
 
   // Handle sending a message
   const handleSend = () => {
     if (input.trim() === '') return;
     
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      text: input.trim(),
-      isUser: true,
-      timestamp: new Date(),
-    };
-    
-    setMessages(prevMessages => [...prevMessages, newMessage]);
+    const userMessage = input.trim();
     setInput('');
     
-    // Simulate AI response
-    simulateResponse(input);
+    // Stream AI response directly from GenAI
+    streamAiResponse(userMessage);
     
     // Dismiss keyboard on send
     Keyboard.dismiss();
@@ -109,7 +247,7 @@ export default function ChatScreen() {
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 100);
-  }, [messages, isTyping]);
+  }, [messages, isTyping, currentStreamedMessage]);
 
   // Format timestamp
   const formatTime = (date: Date) => {

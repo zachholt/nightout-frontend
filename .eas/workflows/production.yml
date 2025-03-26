@@ -1,0 +1,26 @@
+name: Production App Store Submission
+
+jobs:
+  build:
+    name: Build iOS Production App
+    type: build
+    env:
+      APP_ENV: production
+    params:
+      platform: ios
+      profile: production
+      nonInteractive: true
+      wait: true
+      autoIncrement: true
+  submit:
+    name: Submit to App Store
+    needs: [build]
+    type: submit
+    env:
+      EXPO_APPLE_APP_SPECIFIC_PASSWORD: ${env.EXPO_APPLE_APP_SPECIFIC_PASSWORD}
+    params:
+      platform: ios
+      profile: production
+      nonInteractive: true
+      build_id: ${jobs.build.artifact_id}
+      track: production 

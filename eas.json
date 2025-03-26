@@ -15,14 +15,18 @@
       "distribution": "internal",
       "ios": {
         "resourceClass": "m-medium",
-        "credentialsSource": "remote"
-      }
+        "credentialsSource": "remote",
+        "simulator": false
+      },
+      "autoIncrement": true
     },
     "production": {
       "ios": {
         "resourceClass": "m-medium",
-        "credentialsSource": "remote"
-      }
+        "credentialsSource": "remote",
+        "simulator": false
+      },
+      "autoIncrement": true
     }
   },
   "submit": {

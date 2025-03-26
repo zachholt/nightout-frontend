@@ -1,0 +1,27 @@
+name: TestFlight Submission
+
+jobs:
+  build:
+    name: Build iOS App
+    type: build
+    env:
+      APP_ENV: preview
+    params:
+      platform: ios
+      profile: preview
+      version: 1.0.0
+      buildNumber: 1
+      nonInteractive: true
+      wait: true
+  submit:
+    name: Submit to TestFlight
+    needs: [build]
+    type: submit
+    env:
+      EXPO_APPLE_APP_SPECIFIC_PASSWORD: ${env.EXPO_APPLE_APP_SPECIFIC_PASSWORD}
+    params:
+      platform: ios
+      profile: preview
+      nonInteractive: true
+      build_id: ${jobs.build.artifact_id}
+      track: testflight 
