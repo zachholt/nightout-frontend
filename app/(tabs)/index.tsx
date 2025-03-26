@@ -327,6 +327,8 @@ export default function TabOneScreen() {
         mapRef={mapRef}
         region={region}
         onRegionChangeComplete={setRegion}
+        nearbyLocations={filteredLocations} 
+        onMarkerPress={handleLocationPress}
       />
       
       <LocationBottomSheet
