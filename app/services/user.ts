@@ -55,5 +55,18 @@ export const userApi = {
       { params: { latitude, longitude, radiusInMeters } }
     );
     return response.data;
+  },
+  
+  // Get users at a specific location (venue)
+  getUsersAtLocation: async (
+    latitude: number,
+    longitude: number,
+    radiusInMeters: number = 100
+  ): Promise<UserResponse[]> => {
+    const response = await axios.get(
+      `${API_URL}/users/at-location`,
+      { params: { latitude, longitude, radiusInMeters } }
+    );
+    return response.data;
   }
 }; 

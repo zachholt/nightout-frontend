@@ -91,14 +91,20 @@ export const LocationCard: React.FC<LocationCardProps> = ({
             {isAuthenticated && (
               <View style={[
                 styles.userCountPill,
-                { backgroundColor: userCount > 0 ? '#007AFF' : (isDark ? '#3A3A3C' : '#D1D1D6') }
+                { 
+                  backgroundColor: isUserCheckedIn 
+                    ? '#4CD964' // Green when user is checked in here 
+                    : (userCount > 0 ? '#007AFF' : (isDark ? '#3A3A3C' : '#D1D1D6')) 
+                }
               ]}>
                 <Ionicons 
-                  name={userCount > 0 ? "people" : "people-outline"} 
+                  name={isUserCheckedIn ? "person-circle" : (userCount > 0 ? "people" : "people-outline")} 
                   size={14} 
                   color="#FFFFFF" 
                 />
-                <Text style={styles.userCountText}>{userCount}</Text>
+                <Text style={styles.userCountText}>
+                  {isUserCheckedIn ? (userCount > 1 ? `You + ${userCount - 1}` : 'You') : userCount}
+                </Text>
               </View>
             )}
             {isInRoute && (
@@ -147,8 +153,8 @@ export const LocationCard: React.FC<LocationCardProps> = ({
             </View>
           )}
           
-          {/* You're Here Badge */}
-          {isUserCheckedIn && (
+          {/* Only show the "You're Here" badge if not already showing it in the user count */}
+          {isUserCheckedIn && !isAuthenticated && (
             <View style={styles.checkedInBadge}>
               <Ionicons name="checkmark-circle" size={12} color="#fff" />
               <Text style={styles.checkedInText}>You're Here</Text>

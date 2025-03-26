@@ -21,7 +21,7 @@ extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
   }
 }
 
-rootProject.name = 'nightout-frontend'
+rootProject.name = 'Parliament Pals'
 
 dependencyResolutionManagement {
   versionCatalogs {

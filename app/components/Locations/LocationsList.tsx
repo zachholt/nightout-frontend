@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, useColorScheme } from 'react-native';
+import { View, Text, FlatList, StyleSheet, ActivityIndicator, useColorScheme, TouchableOpacity, AppState } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { NearbyLocation } from '../../types/location';
 import { LocationCard } from './LocationCard';
 import { useRoute } from '../../context/RouteContext';
@@ -11,6 +12,7 @@ interface LocationsListProps {
   onLocationPress: (location: NearbyLocation) => void;
   isLoading: boolean;
   error: string | null;
+  onRefresh?: () => void;
 }
 
 // Interface for tracking user counts at locations
@@ -23,11 +25,12 @@ export default function LocationsList({
   onLocationPress,
   isLoading,
   error,
+  onRefresh,
 }: LocationsListProps) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const { currentRoute } = useRoute();
-  const { user, getUsersByLocation } = useUser();
+  const { user, getUsersAtLocation } = useUser();
   
   // State to track user counts at each location
   const [userCounts, setUserCounts] = useState<LocationUserCounts>({});
@@ -55,10 +58,11 @@ export default function LocationsList({
           // Create an array of promises for each location in the batch
           const promises = batch.map(async (location) => {
             try {
-              const users = await getUsersByLocation(
+              // Use the new method that specifically gets users at a location
+              const users = await getUsersAtLocation(
                 location.location.latitude,
                 location.location.longitude,
-                100 // Small radius in meters to get users at this specific location
+                100 // Radius in meters to get users at this specific location
               );
               
               counts[location.id] = users.length;
@@ -80,8 +84,36 @@ export default function LocationsList({
       }
     };
     
+    // Initial fetch
     fetchUserCounts();
-  }, [locations, user, getUsersByLocation]);
+
+    // Set up a refresh when returning to the screen
+    const refreshTimer = setTimeout(() => {
+      fetchUserCounts();
+    }, 500);
+
+    // Set up an AppState listener to refresh when app comes to foreground
+    const handleAppStateChange = (nextAppState: string) => {
+      if (nextAppState === 'active') {
+        console.log('App has come to the foreground - refreshing locations');
+        fetchUserCounts();
+      }
+    };
+
+    // Add AppState change listener
+    const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
+    
+    // Set up a periodic refresh every 10 seconds while the component is mounted
+    const periodicRefresh = setInterval(() => {
+      fetchUserCounts();
+    }, 10000);
+
+    return () => {
+      clearTimeout(refreshTimer);
+      clearInterval(periodicRefresh);
+      appStateSubscription.remove(); // Clean up the AppState listener
+    };
+  }, [locations, user, getUsersAtLocation, user?.latitude, user?.longitude]);
   
   const renderEmptyState = () => {
     if (isLoading) {
@@ -101,6 +133,17 @@ export default function LocationsList({
           <Text style={[styles.emptyText, { color: isDark ? '#ddd' : '#666' }]}>
             {error}
           </Text>
+          {onRefresh && (
+            <TouchableOpacity 
+              style={[styles.refreshButton, { backgroundColor: isDark ? '#333' : '#e0e0e0' }]} 
+              onPress={onRefresh}
+            >
+              <Ionicons name="refresh" size={18} color={isDark ? '#fff' : '#333'} />
+              <Text style={[styles.refreshButtonText, { color: isDark ? '#fff' : '#333' }]}>
+                Refresh
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       );
     }
@@ -110,6 +153,17 @@ export default function LocationsList({
         <Text style={[styles.emptyText, { color: isDark ? '#ddd' : '#666' }]}>
           No places found nearby. Try adjusting your filters.
         </Text>
+        {onRefresh && (
+          <TouchableOpacity 
+            style={[styles.refreshButton, { backgroundColor: isDark ? '#333' : '#e0e0e0' }]} 
+            onPress={onRefresh}
+          >
+            <Ionicons name="refresh" size={18} color={isDark ? '#fff' : '#333'} />
+            <Text style={[styles.refreshButtonText, { color: isDark ? '#fff' : '#333' }]}>
+              Refresh
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   };
@@ -157,5 +211,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     marginTop: 16,
+    marginBottom: 20,
+  },
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginTop: 10,
+  },
+  refreshButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginLeft: 8,
   },
 }); 

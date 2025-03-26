@@ -15,14 +15,32 @@
       "distribution": "internal",
       "ios": {
         "resourceClass": "m-medium",
-        "credentialsSource": "remote"
-      }
+        "credentialsSource": "remote",
+        "simulator": false
+      },
+      "autoIncrement": true
     },
-    "production": {
+    "testflight": {
+      "distribution": "store",
       "ios": {
         "resourceClass": "m-medium",
-        "credentialsSource": "remote"
-      }
+        "credentialsSource": "remote",
+        "simulator": false,
+        "buildConfiguration": "Release",
+        "autoIncrement": true
+      },
+      "channel": "testflight"
+    },
+    "production": {
+      "distribution": "store",
+      "ios": {
+        "resourceClass": "m-medium",
+        "credentialsSource": "remote",
+        "simulator": false,
+        "buildConfiguration": "Release"
+      },
+      "autoIncrement": true,
+      "channel": "production"
     }
   },
   "submit": {
@@ -30,7 +48,16 @@
       "ios": {
         "appleId": "zacjac96@icloud.com",
         "ascAppId": "6743496963",
-        "appleTeamId": "977EE3ZU57"
+        "appleTeamId": "977EE3ZU57",
+        "language": "en-US"
+      }
+    },
+    "testflight": {
+      "ios": {
+        "appleId": "zacjac96@icloud.com",
+        "ascAppId": "6743496963",
+        "appleTeamId": "977EE3ZU57",
+        "language": "en-US"
       }
     },
     "preview": {

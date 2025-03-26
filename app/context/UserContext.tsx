@@ -24,6 +24,7 @@ interface UserContextType {
   checkOut: () => Promise<void>;
   isCheckedInAt: (locationCoords: { latitude: number; longitude: number }) => boolean;
   getUsersByLocation: (latitude: number, longitude: number, radiusInMeters?: number) => Promise<User[]>;
+  getUsersAtLocation: (latitude: number, longitude: number, radiusInMeters?: number) => Promise<User[]>;
   logout: () => Promise<void>;
   updateProfilePicture: (imageUri: string) => Promise<void>; // New function for updating profile picture
 }
@@ -145,12 +146,21 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isCheckedInAt = (locationCoords: { latitude: number; longitude: number }): boolean => {
     if (!user || user.latitude === null || user.longitude === null) return false;
     
-    return areCoordinatesClose(
-      user.latitude, 
-      user.longitude, 
-      locationCoords.latitude, 
-      locationCoords.longitude
-    );
+    // Use Haversine formula for more accurate distance calculation
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = (user.latitude * Math.PI) / 180;
+    const φ2 = (locationCoords.latitude * Math.PI) / 180;
+    const Δφ = ((locationCoords.latitude - user.latitude) * Math.PI) / 180;
+    const Δλ = ((locationCoords.longitude - user.longitude) * Math.PI) / 180;
+
+    const a =
+      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c;
+    
+    // Increase the check-in radius to 100 meters (from 50) to match the server
+    return distance <= 100;
   };
 
   const getUsersByLocation = async (
@@ -164,6 +174,21 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return users;
     } catch (err) {
       console.error('Get users error:', err);
+      return [];
+    }
+  };
+
+  const getUsersAtLocation = async (
+    latitude: number,
+    longitude: number,
+    radiusInMeters: number = 100
+  ): Promise<User[]> => {
+    try {
+      setError(null);
+      const users = await userApi.getUsersAtLocation(latitude, longitude, radiusInMeters);
+      return users;
+    } catch (err) {
+      console.error('Get users at location error:', err);
       return [];
     }
   };
@@ -227,8 +252,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
         checkOut,
         isCheckedInAt,
         getUsersByLocation,
+        getUsersAtLocation,
         logout,
-        updateProfilePicture, // Add the new function to the context
+        updateProfilePicture
       }}
     >
       {children}

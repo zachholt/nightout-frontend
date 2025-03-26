@@ -24,6 +24,7 @@ interface LocationBottomSheetProps {
   isInRoute: (locationId: string) => boolean;
   onRouteToggle: () => void;
   isDark: boolean;
+  onRefresh?: () => void;
 }
 
 const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
@@ -43,6 +44,7 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
   isInRoute,
   onRouteToggle,
   isDark,
+  onRefresh,
 }) => {
   const insets = useSafeAreaInsets();
 
@@ -90,6 +92,7 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
             onLocationPress={onLocationPress}
             isLoading={isLoading}
             error={error}
+            onRefresh={onRefresh}
           />
         </BottomSheetScrollView>
       </View>

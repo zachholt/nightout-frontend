@@ -1,0 +1,69 @@
+name: iOS Build & Submit
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'Build profile (production, testflight)'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - testflight
+      skip_submit:
+        description: 'Skip submission to App Store'
+        required: false
+        default: false
+        type: boolean
+  push:
+    branches:
+      - main
+    paths:
+      - 'nightout-frontend/**'
+
+jobs:
+  build-and-submit:
+    name: Build and Submit iOS App
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🏗 Checkout repository
+        uses: actions/checkout@v3
+
+      - name: 🏗 Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18.x
+          cache: yarn
+
+      - name: 📦 Install dependencies
+        working-directory: ./nightout-frontend
+        run: yarn install
+
+      - name: 🏗 Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 🚀 Build iOS app
+        id: build
+        working-directory: ./nightout-frontend
+        run: |
+          # Start the build and capture output
+          BUILD_OUTPUT=$(eas build --platform ios --profile ${{ inputs.profile || 'production' }} --non-interactive --json)
+          
+          # Extract the build ID from the JSON output
+          BUILD_ID=$(echo "$BUILD_OUTPUT" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+          
+          # Save the build ID as an output
+          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+          
+          echo "✅ Build completed with ID: $BUILD_ID"
+
+      - name: 🚀 Submit to App Store
+        if: ${{ !inputs.skip_submit }}
+        working-directory: ./nightout-frontend
+        run: |
+          echo "📱 Submitting build ${{ steps.build.outputs.build_id }} to App Store Connect..."
+          eas submit --platform ios --profile ${{ inputs.profile || 'production' }} --id ${{ steps.build.outputs.build_id }} 
