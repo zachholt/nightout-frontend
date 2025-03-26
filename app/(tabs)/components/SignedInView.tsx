@@ -1,11 +1,15 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Image, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, Image, Alert, Modal, TextInput, ScrollView, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useUser, User } from '../../context/UserContext';
 import { useFavorite } from '../../context/FavoriteContext';
 import { useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as FileSystem from 'expo-file-system';
+import { authApi } from '@/services/auth';
+import { NearbyLocation } from '@/app/types/location';
+import { fetchNearbyPlaces } from '@/app/utils/apiUtils';
+import * as Location from 'expo-location';
 
 interface SignedInViewProps {
   colors: {
@@ -21,6 +25,13 @@ interface SignedInViewProps {
   handleSignOut: () => void;
 }
 
+// Names for fake users
+const FAKE_USER_NAMES = [
+  "Alex Johnson", "Taylor Smith", "Jordan Brown", "Casey Williams", "Morgan Davis",
+  "Riley Wilson", "Jamie Jones", "Avery Miller", "Blake Moore", "Quinn Thompson",
+  "Cameron White", "Jordan Harris", "Drew Martin", "Jesse Garcia", "Reese Anderson"
+];
+
 export function SignedInView({ colors, user, handleSignOut }: SignedInViewProps) {
   const { error, updateProfilePicture } = useUser();
   const [cameraVisible, setCameraVisible] = useState(false);
@@ -28,9 +39,33 @@ export function SignedInView({ colors, user, handleSignOut }: SignedInViewProps)
   const [permission, requestPermission] = useCameraPermissions();
   const { favorites } = useFavorite();
   const router = useRouter();
+  
+  // Debug state
+  const [debugTapsCount, setDebugTapsCount] = useState(0);
+  const [showDebugOptions, setShowDebugOptions] = useState(false);
+  const [debugModalVisible, setDebugModalVisible] = useState(false);
+  const [numberOfFakeUsers, setNumberOfFakeUsers] = useState("5");
+  const [nearbyLocations, setNearbyLocations] = useState<NearbyLocation[]>([]);
+  const [isCreatingUsers, setIsCreatingUsers] = useState(false);
+  const [creationProgress, setCreationProgress] = useState("");
+
+  // Check if on development environment
+  const isDevelopment = process.env.NODE_ENV === 'development';
 
   const handleFavoritesPress = () => {
     router.push('/favorites');
+  };
+
+  const handleProfileNamePress = () => {
+    // Increment debug tap counter
+    const newCount = debugTapsCount + 1;
+    setDebugTapsCount(newCount);
+    
+    // Show debug options if tapped 5 times
+    if (newCount >= 5) {
+      setShowDebugOptions(true);
+      setDebugTapsCount(0);
+    }
   };
 
   const takePicture = async () => {
@@ -54,6 +89,130 @@ export function SignedInView({ colors, user, handleSignOut }: SignedInViewProps)
         Alert.alert("Error", "Failed to take picture.");
         setCameraVisible(false);
       }
+    }
+  };
+
+  // Function to fetch nearby locations
+  const fetchLocations = async () => {
+    try {
+      // Get current location
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert("Error", "Location permission is required to create fake users");
+        return;
+      }
+      
+      const location = await Location.getCurrentPositionAsync({});
+      const setLoading = (val: boolean) => {};
+      const setError = (val: string | null) => {};
+      
+      // Fetch nearby places
+      const places = await fetchNearbyPlaces(
+        location.coords.latitude,
+        location.coords.longitude,
+        setLoading,
+        setError
+      );
+      
+      setNearbyLocations(places);
+      return places;
+    } catch (error) {
+      console.error('Error fetching locations:', error);
+      Alert.alert("Error", "Failed to fetch nearby locations");
+      return [];
+    }
+  };
+
+  // Function to create fake users
+  const createFakeUsers = async () => {
+    setIsCreatingUsers(true);
+    setCreationProgress("Fetching nearby locations...");
+    
+    const locations = await fetchLocations();
+    if (!locations || locations.length === 0) {
+      setIsCreatingUsers(false);
+      setCreationProgress("");
+      Alert.alert("Error", "No nearby locations found");
+      return;
+    }
+    
+    const numUsers = parseInt(numberOfFakeUsers, 10) || 5;
+    
+    try {
+      setCreationProgress(`Creating ${numUsers} fake users...`);
+      
+      // Create users one by one
+      for (let i = 0; i < numUsers; i++) {
+        // Get a random location
+        const location = locations[Math.floor(Math.random() * locations.length)];
+        
+        // Generate a random name
+        const name = FAKE_USER_NAMES[Math.floor(Math.random() * FAKE_USER_NAMES.length)];
+        
+        // Create a random email based on the name
+        const randomNum = Math.floor(Math.random() * 10000);
+        const email = `${name.toLowerCase().replace(/\s+/g, '.')}.${randomNum}@example.com`;
+        
+        // Create the user
+        const userData = {
+          name: name,
+          email: email,
+          password: "password123",
+        };
+        
+        setCreationProgress(`Creating user ${i+1}/${numUsers}: ${name}`);
+        
+        try {
+          // Register the user
+          const createdUser = await authApi.register(userData);
+          
+          // Check in the user at the location
+          if (createdUser) {
+            setCreationProgress(`Checking in user ${i+1}/${numUsers} at ${location.name}`);
+            
+            // Make a direct API call to check in the user at the location
+            await fetch(`http://44.203.161.109:8080/api/users/checkin?email=${email}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                latitude: location.location.latitude,
+                longitude: location.location.longitude,
+              }),
+            });
+          }
+        } catch (error) {
+          console.error(`Error creating user ${i+1}:`, error);
+          setCreationProgress(`Error creating user ${i+1}: ${error}`);
+          // Continue with the next user
+        }
+      }
+      
+      setCreationProgress("All users created successfully! Refreshing locations...");
+      
+      // Force the app to refresh by navigating to the home tab
+      setTimeout(() => {
+        // Close the modal and show success message
+        setIsCreatingUsers(false);
+        setCreationProgress("");
+        setDebugModalVisible(false);
+        
+        // Redirect to home tab to refresh the locations
+        router.push('/(tabs)');
+        
+        // Show success alert
+        setTimeout(() => {
+          Alert.alert("Success", `Created ${numUsers} fake users at random nearby locations. The locations list has been refreshed.`);
+        }, 500);
+      }, 2000);
+    } catch (error) {
+      console.error('Error creating fake users:', error);
+      setCreationProgress(`Error: ${error}`);
+      setTimeout(() => {
+        setIsCreatingUsers(false);
+        setCreationProgress("");
+      }, 2000);
     }
   };
 
@@ -97,10 +256,10 @@ export function SignedInView({ colors, user, handleSignOut }: SignedInViewProps)
               <Ionicons name="person" size={32} color={colors.text} />
             )}
           </TouchableOpacity>
-          <View style={styles.userInfo}>
+          <TouchableOpacity onPress={handleProfileNamePress} style={styles.userInfo}>
             <Text style={[styles.userName, { color: colors.text }]}>{user.name}</Text>
             <Text style={[styles.userEmail, { color: colors.secondaryText }]}>{user.email}</Text>
-          </View>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -145,6 +304,20 @@ export function SignedInView({ colors, user, handleSignOut }: SignedInViewProps)
           <Ionicons name="chevron-forward" size={24} color={colors.secondaryText} />
         </TouchableOpacity>
         
+        {/* Debug button - only visible after 5 taps on the name */}
+        {showDebugOptions && (
+          <TouchableOpacity 
+            style={[styles.menuItem, { backgroundColor: '#7b1fa2' }]}
+            onPress={() => setDebugModalVisible(true)}
+          >
+            <Ionicons name="bug-outline" size={24} color="#ffffff" />
+            <Text style={[styles.menuItemText, { color: '#ffffff' }]}>
+              Create Fake Users
+            </Text>
+            <Ionicons name="chevron-forward" size={24} color="#ffffff" />
+          </TouchableOpacity>
+        )}
+        
         <TouchableOpacity 
           style={[styles.signOutButton, { backgroundColor: colors.buttonBackground }]}
           onPress={handleSignOut}
@@ -152,6 +325,69 @@ export function SignedInView({ colors, user, handleSignOut }: SignedInViewProps)
           <Text style={[styles.signOutButtonText, { color: '#FF3B30' }]}>Sign Out</Text>
         </TouchableOpacity>
       </View>
+      
+      {/* Debug Modal for creating fake users */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={debugModalVisible}
+        onRequestClose={() => setDebugModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Create Fake Users</Text>
+              <TouchableOpacity 
+                onPress={() => setDebugModalVisible(false)}
+                disabled={isCreatingUsers}
+              >
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            
+            {isCreatingUsers ? (
+              <View style={styles.creatingUsersContainer}>
+                <ActivityIndicator size="large" color={colors.accent} />
+                <Text style={[styles.creatingUsersText, { color: colors.text }]}>
+                  {creationProgress}
+                </Text>
+              </View>
+            ) : (
+              <>
+                <Text style={[styles.modalDescription, { color: colors.secondaryText }]}>
+                  This will create fake users at random nearby locations.
+                </Text>
+                
+                <View style={styles.inputContainer}>
+                  <Text style={[styles.inputLabel, { color: colors.text }]}>Number of users:</Text>
+                  <TextInput
+                    style={[
+                      styles.input, 
+                      { 
+                        backgroundColor: colors.inputBackground || colors.buttonBackground,
+                        borderColor: colors.inputBorder || colors.secondaryText,
+                        color: colors.text
+                      }
+                    ]}
+                    value={numberOfFakeUsers}
+                    onChangeText={setNumberOfFakeUsers}
+                    keyboardType="numeric"
+                    placeholder="5"
+                    placeholderTextColor={colors.secondaryText}
+                  />
+                </View>
+                
+                <TouchableOpacity
+                  style={[styles.createButton, { backgroundColor: colors.accent }]}
+                  onPress={createFakeUsers}
+                >
+                  <Text style={styles.createButtonText}>Create Fake Users</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -256,5 +492,70 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     textAlign: 'center',
-  }
+  },
+  // Debug Modal Styles
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalContent: {
+    width: '80%',
+    padding: 20,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  modalDescription: {
+    marginBottom: 20,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  inputContainer: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 16,
+    marginBottom: 8,
+  },
+  input: {
+    height: 44,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    fontSize: 16,
+  },
+  createButton: {
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  createButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  creatingUsersContainer: {
+    paddingVertical: 30,
+    alignItems: 'center',
+  },
+  creatingUsersText: {
+    marginTop: 15,
+    fontSize: 16,
+    textAlign: 'center',
+  },
 });

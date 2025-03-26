@@ -24,9 +24,10 @@ interface Message {
   timestamp: Date;
 }
 
-// Direct GenAI API URL
-const GENAI_API_URL = 'https://lisa-rest-2067001295.us-east-1.elb.amazonaws.com/v2/serve/chat/completions';
-const API_TOKEN = 'test_token';
+// Backend API URLs
+const BACKEND_API_URL = '/api';
+const BACKEND_CHAT_API = `${BACKEND_API_URL}/chat`;
+const BACKEND_STREAM_API = `${BACKEND_API_URL}/chat/stream`;
 
 export default function ChatScreen() {
   const colorScheme = useColorScheme();
@@ -44,6 +45,7 @@ export default function ChatScreen() {
   const [isTyping, setIsTyping] = useState(false);
   const [currentStreamedMessage, setCurrentStreamedMessage] = useState('');
   const scrollViewRef = useRef<ScrollView>(null);
+  const [sessionId, setSessionId] = useState(`session-${Date.now()}`);
 
   // Colors for the chat interface
   const colors = {
@@ -61,119 +63,86 @@ export default function ChatScreen() {
     separator: isDark ? '#38383A' : '#E5E5EA',
   };
 
-  // Format messages for the GenAI API
-  const formatMessages = () => {
-    const formattedMessages = [];
-    
-    // Add system message
-    formattedMessages.push({
-      role: 'system',
-      content: 'You are the NightOut AI assistant, designed to help users find bars, restaurants, and entertainment venues. ' +
-               'You provide friendly, concise, and helpful information about nightlife options. ' +
-               'If asked about locations, always suggest specific places with details when possible.'
-    });
-    
-    // Add chat history
-    messages.forEach(message => {
-      formattedMessages.push({
-        role: message.isUser ? 'user' : 'assistant',
-        content: message.text
-      });
-    });
-    
-    return formattedMessages;
-  };
-
-  // Stream AI message directly from GenAI API
-  const streamAiResponse = async (userMessage: string) => {
+  // Send message to the backend API
+  const sendMessage = async (userMessage: string) => {
     setIsTyping(true);
     
     try {
-      // Create a new message for streaming
-      const newMessageId = Date.now().toString();
-      const newMessage = {
-        id: newMessageId,
-        text: '',
-        isUser: false,
-        timestamp: new Date(),
-      };
+      // Create unique IDs using uuid-like approach
+      const userMsgId = `user-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      const aiMsgId = `ai-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
       
       // Add user message to the chat
       const userMsg = {
-        id: (Date.now() - 1).toString(),
+        id: userMsgId,
         text: userMessage,
         isUser: true,
         timestamp: new Date(),
       };
       
-      setMessages(prevMessages => [...prevMessages, userMsg, newMessage]);
-      
-      // Prepare direct GenAI API request
-      const requestBody = {
-        model: 'mistral-vllm',
-        temperature: null,
-        top_p: 0.01,
-        frequency_penalty: null,
-        presence_penalty: null,
-        max_tokens: null,
-        n: null,
-        stop: ['\nUser:', '\n User:', 'User:', 'User'],
-        stream: true,
-        seed: null,
-        stream_options: { include_usage: true },
-        messages: [
-          {
-            role: 'system',
-            content: 'You are the NightOut AI assistant, designed to help users find bars, restaurants, and entertainment venues. ' +
-                     'You provide friendly, concise, and helpful information about nightlife options. ' +
-                     'If asked about locations, always suggest specific places with details when possible.'
-          },
-          ...messages.map(msg => ({
-            role: msg.isUser ? 'user' : 'assistant',
-            content: msg.text
-          })),
-          {
-            role: 'user',
-            content: userMessage
-          }
-        ]
+      // Add both messages at once to avoid duplicate state updates
+      const aiMsg = {
+        id: aiMsgId,
+        text: '',
+        isUser: false,
+        timestamp: new Date(),
       };
       
-      console.log('Sending direct request to GenAI:', JSON.stringify(requestBody));
+      setMessages(prevMessages => [...prevMessages, userMsg, aiMsg]);
       
-      // Use fetch with streaming
-      const response = await fetch(GENAI_API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'text/event-stream',
-          'Authorization': API_TOKEN
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Network response was not ok: ${response.status} ${response.statusText}`);
-      }
+      // Prepare request body for the backend API
+      const requestBody = {
+        userMessage: userMessage,
+        sessionId: sessionId,
+        history: messages.map(msg => ({
+          id: msg.id,
+          text: msg.text,
+          isUser: msg.isUser,
+          timestamp: msg.timestamp
+        }))
+      };
       
-      // Create reader for the stream
-      const reader = response.body?.getReader();
-      let accumulatedText = '';
+      console.log('Sending request to backend API');
       
-      if (reader) {
+      try {
+        const response = await fetch(BACKEND_STREAM_API, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'text/event-stream'
+          },
+          body: JSON.stringify(requestBody)
+        });
+        
+        console.log('Response status:', response.status);
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`API request failed with status ${response.status}: ${errorText}`);
+        }
+        
+        // Handle streaming response
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let accumulatedText = '';
+        
+        if (!reader) {
+          throw new Error('Unable to read stream');
+        }
+        
+        // Process the streaming response
         while (true) {
           const { done, value } = await reader.read();
           
           if (done) {
+            console.log('Stream complete');
             break;
           }
           
-          // Decode the chunk
-          const chunk = new TextDecoder().decode(value);
-          console.log('Received chunk:', chunk);
-          
-          // Process each line in the chunk
+          // Decode the chunk and process SSE format
+          const chunk = decoder.decode(value, { stream: true });
           const lines = chunk.split('\n');
+          
           for (const line of lines) {
             if (line.startsWith('data:')) {
               try {
@@ -185,7 +154,7 @@ export default function ChatScreen() {
                 
                 const data = JSON.parse(jsonStr);
                 
-                // Extract content from the streaming response format
+                // Process delta format from the AI API
                 if (data.choices && data.choices.length > 0 && data.choices[0].delta) {
                   const delta = data.choices[0].delta;
                   if (delta.content) {
@@ -195,7 +164,7 @@ export default function ChatScreen() {
                     // Update message in the UI
                     setMessages(prevMessages => 
                       prevMessages.map(msg => 
-                        msg.id === newMessageId 
+                        msg.id === aiMsgId 
                           ? { ...msg, text: accumulatedText } 
                           : msg
                       )
@@ -208,14 +177,24 @@ export default function ChatScreen() {
             }
           }
         }
+      } catch (fetchError: any) {
+        console.error('Fetch error:', fetchError);
+        
+        // Update AI message with error
+        setMessages(prevMessages => 
+          prevMessages.map(msg => 
+            msg.id === aiMsgId 
+              ? { ...msg, text: `Sorry, I encountered a connection error: ${fetchError.message}` } 
+              : msg
+          )
+        );
       }
       
     } catch (error: any) {
-      console.error('Error fetching AI response:', error);
+      console.error('Error in request setup:', error);
       
-      // Add error message
       setMessages(prevMessages => [...prevMessages, {
-        id: Date.now().toString(),
+        id: `error-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
         text: `Sorry, I encountered an error: ${error.message || 'Unknown error'}`,
         isUser: false,
         timestamp: new Date(),
@@ -235,8 +214,8 @@ export default function ChatScreen() {
     const userMessage = input.trim();
     setInput('');
     
-    // Stream AI response directly from GenAI
-    streamAiResponse(userMessage);
+    // Send message to backend
+    sendMessage(userMessage);
     
     // Dismiss keyboard on send
     Keyboard.dismiss();

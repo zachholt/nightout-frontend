@@ -83,53 +83,75 @@ export default function TabOneScreen() {
 
   // MARK: - Location Services
   useEffect(() => {
-    (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        setError('Permission to access location was denied');
-        return;
-      }
+    fetchUserLocations();
+  }, []);
+  
+  // Add a listener for app focus to refresh data
+  useEffect(() => {
+    // Function to run when the app gains focus
+    const handleAppFocus = () => {
+      console.log('App gained focus - refreshing locations');
+      fetchUserLocations();
+    };
+    
+    // Set up a listener for app focus events
+    const unsubscribeFocus = navigation.addListener('focus', handleAppFocus);
+    
+    // Clean up the listener when the component unmounts
+    return () => {
+      unsubscribeFocus();
+    };
+  }, [navigation]);
+  
+  const fetchUserLocations = async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      setError('Permission to access location was denied');
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      const location = await Location.getCurrentPositionAsync({});
+      setUserLocation(location);
       
-      try {
-        const location = await Location.getCurrentPositionAsync({});
-        setUserLocation(location);
-        
-        const latitudeOffset = 0.0025;
-        
-        setRegion({
-          latitude: location.coords.latitude - latitudeOffset,
-          longitude: location.coords.longitude,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        });
-        
-        const places = await fetchNearbyPlaces(
+      const latitudeOffset = 0.0025;
+      
+      setRegion({
+        latitude: location.coords.latitude - latitudeOffset,
+        longitude: location.coords.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      });
+      
+      const places = await fetchNearbyPlaces(
+        location.coords.latitude,
+        location.coords.longitude,
+        setIsLoading,
+        setError
+      );
+      
+      const locationsWithDistance = places.map(place => ({
+        ...place,
+        distance: getDistanceInMiles(
           location.coords.latitude,
           location.coords.longitude,
-          setIsLoading,
-          setError
-        );
-        
-        const locationsWithDistance = places.map(place => ({
-          ...place,
-          distance: getDistanceInMiles(
-            location.coords.latitude,
-            location.coords.longitude,
-            place.location.latitude,
-            place.location.longitude
-          ),
-        }));
-        
-        locationsWithDistance.sort((a, b) => (a.distance || 0) - (b.distance || 0));
-        
-        setNearbyLocations(locationsWithDistance);
-        setFilteredLocations(locationsWithDistance);
-      } catch (error) {
-        console.error('Error getting location:', error);
-        setError('Failed to get your location. Please try again.');
-      }
-    })();
-  }, []);
+          place.location.latitude,
+          place.location.longitude
+        ),
+      }));
+      
+      locationsWithDistance.sort((a, b) => (a.distance || 0) - (b.distance || 0));
+      
+      setNearbyLocations(locationsWithDistance);
+      setFilteredLocations(locationsWithDistance);
+    } catch (error) {
+      console.error('Error getting location:', error);
+      setError('Failed to get your location. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   // MARK: - Filtering and Sorting
   useEffect(() => {
@@ -324,6 +346,7 @@ export default function TabOneScreen() {
         isInRoute={isInRoute}
         onRouteToggle={handleRouteToggle}
         isDark={isDark}
+        onRefresh={fetchUserLocations}
       />
     </GestureHandlerRootView>
   );
