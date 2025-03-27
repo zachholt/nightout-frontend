@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, useColorScheme, TouchableOpacity, AppState } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator, useColorScheme, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NearbyLocation } from '../../types/location';
 import { LocationCard } from './LocationCard';
 import { useRoute } from '../../context/RouteContext';
 import { useUser } from '../../context/UserContext';
+import { useLocation } from '../../context/LocationContext';
 import { getLocationIcon } from '../../utils/locationUtils';
 
 interface LocationsListProps {
@@ -13,11 +14,6 @@ interface LocationsListProps {
   isLoading: boolean;
   error: string | null;
   onRefresh?: () => void;
-}
-
-// Interface for tracking user counts at locations
-interface LocationUserCounts {
-  [locationId: string]: number;
 }
 
 export default function LocationsList({
@@ -30,11 +26,8 @@ export default function LocationsList({
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const { currentRoute } = useRoute();
-  const { user, getUsersAtLocation } = useUser();
-  
-  // State to track user counts at each location
-  const [userCounts, setUserCounts] = useState<LocationUserCounts>({});
-  const [isLoadingCounts, setIsLoadingCounts] = useState<boolean>(false);
+  const { user } = useUser();
+  const { userCounts, isLoadingCounts, refreshLocationData } = useLocation();
   
   const isInRoute = (locationId: string) => {
     return currentRoute.some(item => item.id === locationId);
@@ -42,78 +35,16 @@ export default function LocationsList({
   
   // Fetch user counts for all locations
   useEffect(() => {
-    const fetchUserCounts = async () => {
-      if (!user || locations.length === 0) return;
-      
-      setIsLoadingCounts(true);
-      
-      try {
-        const counts: LocationUserCounts = {};
-        
-        // Process locations in batches to avoid too many simultaneous requests
-        const batchSize = 5;
-        for (let i = 0; i < locations.length; i += batchSize) {
-          const batch = locations.slice(i, i + batchSize);
-          
-          // Create an array of promises for each location in the batch
-          const promises = batch.map(async (location) => {
-            try {
-              // Use the new method that specifically gets users at a location
-              const users = await getUsersAtLocation(
-                location.location.latitude,
-                location.location.longitude,
-                100 // Radius in meters to get users at this specific location
-              );
-              
-              counts[location.id] = users.length;
-            } catch (error) {
-              console.error(`Error fetching users for location ${location.id}:`, error);
-              counts[location.id] = 0;
-            }
-          });
-          
-          // Wait for all promises in this batch to resolve
-          await Promise.all(promises);
-        }
-        
-        setUserCounts(counts);
-      } catch (error) {
-        console.error('Error fetching user counts:', error);
-      } finally {
-        setIsLoadingCounts(false);
-      }
-    };
+    if (!user || locations.length === 0) return;
     
-    // Initial fetch
-    fetchUserCounts();
-
-    // Set up a refresh when returning to the screen
-    const refreshTimer = setTimeout(() => {
-      fetchUserCounts();
-    }, 500);
-
-    // Set up an AppState listener to refresh when app comes to foreground
-    const handleAppStateChange = (nextAppState: string) => {
-      if (nextAppState === 'active') {
-        console.log('App has come to the foreground - refreshing locations');
-        fetchUserCounts();
-      }
-    };
-
-    // Add AppState change listener
-    const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
+    const locationIds = locations.map(loc => loc.id);
+    const coordinates = locations.map(loc => ({
+      latitude: loc.location.latitude,
+      longitude: loc.location.longitude
+    }));
     
-    // Set up a periodic refresh every 10 seconds while the component is mounted
-    const periodicRefresh = setInterval(() => {
-      fetchUserCounts();
-    }, 10000);
-
-    return () => {
-      clearTimeout(refreshTimer);
-      clearInterval(periodicRefresh);
-      appStateSubscription.remove(); // Clean up the AppState listener
-    };
-  }, [locations, user, getUsersAtLocation, user?.latitude, user?.longitude]);
+    refreshLocationData(locationIds, coordinates);
+  }, [locations, user, refreshLocationData]);
   
   const renderEmptyState = () => {
     if (isLoading) {

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,15 +11,16 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { Ionicons } from '@expo/vector-icons';
 import { NearbyLocation } from '../../types/location';
-import { useRoute, RouteLocation } from '../../context/RouteContext';
+import { useRoute } from '../../context/RouteContext';
 import { useUser } from '../../context/UserContext';
 import { useFavorite } from '../../context/FavoriteContext';
+import { useLocation } from '../../context/LocationContext';
 import { getLocationIcon, getLocationTypeName } from '../../utils/locationUtils';
-import * as Location from 'expo-location';
 
 interface LocationDetailsProps {
   location: NearbyLocation;
@@ -34,15 +35,48 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
   const { currentRoute } = useRoute();
   const { user, checkIn, checkOut, isCheckedInAt, isCheckingIn } = useUser();
   const { isFavorite, addFavorite, removeFavorite, error: favoriteError } = useFavorite();
+  const { usersAtLocations, isLoadingCounts, refreshLocationData } = useLocation();
   const scrollY = useRef(new Animated.Value(0)).current;
   const [isScrolled, setIsScrolled] = useState(false);
   const [isFavoriting, setIsFavoriting] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
+  const REFRESH_INTERVAL = 10000; // 10 seconds
+  
+  // For smooth scrolling
+  const scrollViewRef = useRef(null);
   
   const { height, width } = Dimensions.get('window');
   
   const isInRoute = currentRoute.some(item => item.id === location.id);
   const isUserCheckedIn = user && isCheckedInAt(location.location);
   const isLocationFavorite = isFavorite(location.id);
+
+  // Fetch users at this location using LocationContext
+  useEffect(() => {
+    if (!visible || !location) return;
+
+    const currentTime = Date.now();
+    if (currentTime - lastRefreshTime < REFRESH_INTERVAL) {
+      return; // Skip refresh if not enough time has passed
+    }
+
+    const fetchData = async () => {
+      await refreshLocationData([location.id], [{
+        latitude: location.location.latitude,
+        longitude: location.location.longitude
+      }]);
+      setLastRefreshTime(currentTime);
+    };
+
+    fetchData();
+
+    // Set up periodic refresh
+    const refreshInterval = setInterval(fetchData, REFRESH_INTERVAL);
+
+    return () => {
+      clearInterval(refreshInterval);
+    };
+  }, [visible, location, refreshLocationData]);
   
   const formatPhoneNumber = (phone: string | undefined) => {
     if (!phone) return 'Not available';
@@ -136,6 +170,15 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
     }
   );
   
+  // Reset scroll position when location changes
+  useEffect(() => {
+    if (visible && scrollViewRef.current) {
+      setTimeout(() => {
+        scrollY.setValue(0);
+      }, 100);
+    }
+  }, [location, visible]);
+  
   const headerOpacity = scrollY.interpolate({
     inputRange: [0, 50, 100],
     outputRange: [0, 0.7, 1],
@@ -162,6 +205,9 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
       setIsFavoriting(false);
     }
   };
+
+  // Get users at this location from the LocationContext
+  const usersAtLocation = usersAtLocations[location.id] || [];
   
   return (
     <>
@@ -237,8 +283,11 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
       
       {/* Main Content with BottomSheetScrollView */}
       <BottomSheetScrollView 
+        ref={scrollViewRef}
         onScroll={handleScroll}
         contentContainerStyle={styles.scrollViewContent}
+        showsVerticalScrollIndicator={false}
+        bounces={true}
       >
         {/* Main Info Section */}
         <View style={styles.mainInfoSection}>
@@ -310,7 +359,7 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
             </View>
           )}
           
-          {/* Add to Route Button at Bottom */}
+          {/* Add to Route Button */}
           {onRouteToggle && (
             <View style={styles.routeButtonContainer}>
               <TouchableOpacity
@@ -332,6 +381,55 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
                 </Text>
               </TouchableOpacity>
             </View>
+          )}
+          
+          {/* Users at Location Section */}
+          <View style={styles.sectionHeader}>
+            <Ionicons name="people-outline" size={22} color={isDark ? '#ddd' : '#666'} />
+            <Text style={[styles.sectionTitle, { color: isDark ? '#ddd' : '#666' }]}>
+              People Here Now
+            </Text>
+          </View>
+          
+          {isLoadingCounts ? (
+            <ActivityIndicator style={styles.loadingIndicator} color={isDark ? '#ddd' : '#666'} />
+          ) : usersAtLocation.length > 0 ? (
+            <View style={styles.usersContainer}>
+              {usersAtLocation.map((userAtLocation) => (
+                <View key={userAtLocation.id} style={styles.userCard}>
+                  <View style={styles.userAvatarContainer}>
+                    {userAtLocation.profileImage ? (
+                      <Image 
+                        source={{ uri: userAtLocation.profileImage }} 
+                        style={styles.userAvatar} 
+                      />
+                    ) : (
+                      <View style={[
+                        styles.userAvatarPlaceholder, 
+                        { backgroundColor: isDark ? '#444' : '#e0e0e0' }
+                      ]}>
+                        <Ionicons name="person" size={20} color={isDark ? '#ddd' : '#666'} />
+                      </View>
+                    )}
+                  </View>
+                  <Text 
+                    style={[styles.userName, { color: isDark ? '#fff' : '#000' }]}
+                    numberOfLines={1}
+                  >
+                    {userAtLocation.name.split(' ')[0]}
+                  </Text>
+                  {user?.id !== undefined && String(userAtLocation.id) === String(user.id) && (
+                    <View style={styles.currentUserBadge}>
+                      <Text style={styles.currentUserText}>You</Text>
+                    </View>
+                  )}
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={[styles.noUsersText, { color: isDark ? '#aaa' : '#888' }]}>
+              No one is checked in here right now
+            </Text>
           )}
         </View>
       </BottomSheetScrollView>
@@ -396,10 +494,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   scrollViewContent: {
-    paddingBottom: 150,
+    paddingBottom: 180, // Increased padding to prevent cut-off
+    paddingHorizontal: 16,
   },
   mainInfoSection: {
-    padding: 16,
+    padding: 0, // Removing padding as it's now on scrollViewContent
   },
   locationName: {
     fontSize: 24,
@@ -442,7 +541,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   routeButtonContainer: {
-    marginTop: 24,
+    marginVertical: 24,
     alignItems: 'center',
   },
   routeButton: {
@@ -458,6 +557,76 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 8,
     fontSize: 16,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 24,
+    marginBottom: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    paddingTop: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  usersContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 16,
+  },
+  userCard: {
+    width: '30%',
+    alignItems: 'center',
+    marginBottom: 16,
+    marginHorizontal: '1.5%',
+  },
+  userAvatarContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  userAvatar: {
+    width: '100%',
+    height: '100%',
+  },
+  userAvatarPlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
+  userName: {
+    fontSize: 14,
+    textAlign: 'center',
+    fontWeight: '500',
+    maxWidth: '100%',
+  },
+  loadingIndicator: {
+    marginVertical: 20,
+  },
+  noUsersText: {
+    textAlign: 'center',
+    fontStyle: 'italic',
+    marginVertical: 20,
+  },
+  currentUserBadge: {
+    backgroundColor: '#4CD964',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginTop: 4,
+  },
+  currentUserText: {
+    color: 'white',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
 });
 

@@ -215,6 +215,7 @@ export function SignedInView({ colors, user, handleSignOut }: SignedInViewProps)
         setCreationProgress("");
       }, 2000);
     }
+  };
 
   const toggleCameraType = () => {
     console.log('Toggling camera type. Current type:', cameraType); // Debugging
@@ -235,14 +236,30 @@ export function SignedInView({ colors, user, handleSignOut }: SignedInViewProps)
   if (cameraVisible) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <CameraView style={styles.camera} ref={ref => setCameraRef(ref)} type={cameraType}>
+        <CameraView 
+          style={styles.camera} 
+          ref={ref => setCameraRef(ref)}
+          facing={cameraType}
+        >
           <View style={styles.cameraControls}>
-            <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
-              <Ionicons name="camera" size={32} color="white" />
-            </TouchableOpacity>
             <TouchableOpacity style={styles.switchCameraButton} onPress={toggleCameraType}>
-              <Ionicons name="camera-reverse" size={32} color="white" />
+              <Ionicons name="camera-reverse" size={28} color="white" />
             </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
+              <View style={styles.captureButtonInner} />
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.cancelButton} 
+              onPress={() => setCameraVisible(false)}
+            >
+              <Ionicons name="close" size={28} color="white" />
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.cameraHeader}>
+            <Text style={styles.cameraHeaderText}>Take Profile Picture</Text>
           </View>
         </CameraView>
       </View>
@@ -483,14 +500,58 @@ const styles = StyleSheet.create({
   },
   camera: {
     flex: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  cameraControls: {
+    position: 'absolute',
+    bottom: 40,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '80%',
   },
   captureButton: {
-    position: 'absolute',
-    bottom: 30,
-    alignSelf: 'center',
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  captureButtonInner: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    backgroundColor: 'white',
+    borderWidth: 2,
+    borderColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  switchCameraButton: {
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     borderRadius: 30,
     padding: 15,
+  },
+  cancelButton: {
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 30,
+    padding: 15,
+  },
+  cameraHeader: {
+    position: 'absolute',
+    top: 50,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  cameraHeaderText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: '600',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
   },
   permissionButton: {
     marginTop: 20,
@@ -567,13 +628,5 @@ const styles = StyleSheet.create({
     marginTop: 15,
     fontSize: 16,
     textAlign: 'center',
-  cameraControls: {
-    position: 'absolute',
-    bottom: 30,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '80%'
   },
 });

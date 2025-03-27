@@ -15,6 +15,7 @@ import { queryClient } from '@/config/queryClient';
 import { RouteProvider } from './context/RouteContext';
 import { UserProvider, useUser } from './context/UserContext';
 import { FavoriteProvider } from './context/FavoriteContext';
+import { LocationProvider } from './context/LocationContext';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -67,25 +68,32 @@ export default function RootLayout() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={styles.container}>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
           <UserProvider>
             <RouteProvider>
               <FavoriteProvider>
-                <Stack>
-                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                </Stack>
+                <LocationProvider>
+                  <Stack>
+                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                    <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+                  </Stack>
+                </LocationProvider>
               </FavoriteProvider>
             </RouteProvider>
           </UserProvider>
         </ThemeProvider>
       </QueryClientProvider>
+      <StatusBar />
     </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
