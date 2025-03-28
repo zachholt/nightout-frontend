@@ -24,10 +24,8 @@ interface Message {
   timestamp: Date;
 }
 
-// Backend API URLs
-const BACKEND_API_URL = '/api';
-const BACKEND_CHAT_API = `${BACKEND_API_URL}/chat`;
-const BACKEND_STREAM_API = `${BACKEND_API_URL}/chat/stream`;
+// LangChain OpenAI API settings - updating to use our backend endpoint
+const API_ENDPOINT = '/api/chat/chat';
 
 export default function ChatScreen() {
   const colorScheme = useColorScheme();
@@ -43,7 +41,6 @@ export default function ChatScreen() {
     },
   ]);
   const [isTyping, setIsTyping] = useState(false);
-  const [currentStreamedMessage, setCurrentStreamedMessage] = useState('');
   const scrollViewRef = useRef<ScrollView>(null);
   const [sessionId, setSessionId] = useState(`session-${Date.now()}`);
 
@@ -63,135 +60,98 @@ export default function ChatScreen() {
     separator: isDark ? '#38383A' : '#E5E5EA',
   };
 
+  // Add user message to the chat
+  const addUserMessage = (text: string) => {
+    const newMessage: Message = {
+      id: `user-${Date.now()}`,
+      text,
+      isUser: true,
+      timestamp: new Date(),
+    };
+    setMessages(prevMessages => [...prevMessages, newMessage]);
+  };
+
+  // Add AI response to the chat
+  const addAIMessage = (text: string) => {
+    const newMessage: Message = {
+      id: `ai-${Date.now()}`,
+      text,
+      isUser: false,
+      timestamp: new Date(),
+    };
+    setMessages(prevMessages => [...prevMessages, newMessage]);
+  };
+
   // Send message to the backend API
   const sendMessage = async (userMessage: string) => {
     setIsTyping(true);
     
     try {
-      // Create unique IDs using uuid-like approach
-      const userMsgId = `user-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-      const aiMsgId = `ai-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      // Add user message to chat
+      addUserMessage(userMessage);
       
-      // Add user message to the chat
-      const userMsg = {
-        id: userMsgId,
-        text: userMessage,
-        isUser: true,
-        timestamp: new Date(),
+      // Prepare the conversation history
+      const conversationHistory = messages.map(msg => ({
+        role: msg.isUser ? 'user' : 'assistant',
+        content: msg.text
+      }));
+      
+      // Add the new user message
+      conversationHistory.push({
+        role: 'user',
+        content: userMessage
+      });
+      
+      // Prepare the request payload
+      const payload = {
+        "model": "mistral-vllm",
+        "temperature": null,
+        "top_p": 0.01,
+        "frequency_penalty": null,
+        "presence_penalty": null,
+        "max_tokens": null,
+        "n": null,
+        "stop": [
+            "\nUser:",
+            "\n User:",
+            "User:",
+            "User"
+        ],
+        "stream": false,
+        "seed": null,
+        "messages": conversationHistory,
       };
       
-      // Add both messages at once to avoid duplicate state updates
-      const aiMsg = {
-        id: aiMsgId,
-        text: '',
-        isUser: false,
-        timestamp: new Date(),
-      };
+      console.log('Sending request to:', API_ENDPOINT);
       
-      setMessages(prevMessages => [...prevMessages, userMsg, aiMsg]);
+      // Make the API request using fetch
+      const response = await fetch(API_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
       
-      // Prepare request body for the backend API
-      const requestBody = {
-        userMessage: userMessage,
-        sessionId: sessionId,
-        history: messages.map(msg => ({
-          id: msg.id,
-          text: msg.text,
-          isUser: msg.isUser,
-          timestamp: msg.timestamp
-        }))
-      };
-      
-      console.log('Sending request to backend API');
-      
-      try {
-        const response = await fetch(BACKEND_STREAM_API, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'text/event-stream'
-          },
-          body: JSON.stringify(requestBody)
-        });
-        
-        console.log('Response status:', response.status);
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`API request failed with status ${response.status}: ${errorText}`);
-        }
-        
-        // Handle streaming response
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
-        let accumulatedText = '';
-        
-        if (!reader) {
-          throw new Error('Unable to read stream');
-        }
-        
-        // Process the streaming response
-        while (true) {
-          const { done, value } = await reader.read();
-          
-          if (done) {
-            console.log('Stream complete');
-            break;
-          }
-          
-          // Decode the chunk and process SSE format
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n');
-          
-          for (const line of lines) {
-            if (line.startsWith('data:')) {
-              try {
-                // Extract the JSON part
-                const jsonStr = line.substring(5).trim();
-                
-                // Skip [DONE] message
-                if (jsonStr === '[DONE]') continue;
-                
-                const data = JSON.parse(jsonStr);
-                
-                // Process delta format from the AI API
-                if (data.choices && data.choices.length > 0 && data.choices[0].delta) {
-                  const delta = data.choices[0].delta;
-                  if (delta.content) {
-                    // Append new content to accumulated text
-                    accumulatedText += delta.content;
-                    
-                    // Update message in the UI
-                    setMessages(prevMessages => 
-                      prevMessages.map(msg => 
-                        msg.id === aiMsgId 
-                          ? { ...msg, text: accumulatedText } 
-                          : msg
-                      )
-                    );
-                  }
-                }
-              } catch (err) {
-                console.log('Error parsing SSE data:', line, err);
-              }
-            }
-          }
-        }
-      } catch (fetchError: any) {
-        console.error('Fetch error:', fetchError);
-        
-        // Update AI message with error
-        setMessages(prevMessages => 
-          prevMessages.map(msg => 
-            msg.id === aiMsgId 
-              ? { ...msg, text: `Sorry, I encountered a connection error: ${fetchError.message}` } 
-              : msg
-          )
-        );
+      // Check if the response is ok
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
       }
       
+      // First try to get the response as text
+      const responseText = await response.text();
+      console.log('Response received successfully');
+      
+      // If the response is empty, throw an error
+      if (!responseText) {
+        throw new Error('Empty response from server');
+      }
+      
+      // Add the AI response to the chat - using it directly as a string
+      addAIMessage(responseText);
+      
     } catch (error: any) {
-      console.error('Error in request setup:', error);
+      console.error('Error in chat request:', error);
       
       setMessages(prevMessages => [...prevMessages, {
         id: `error-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
@@ -203,7 +163,6 @@ export default function ChatScreen() {
       Alert.alert('Error', `Failed to connect to the AI service: ${error.message || 'Unknown error'}`);
     } finally {
       setIsTyping(false);
-      setCurrentStreamedMessage('');
     }
   };
 
@@ -226,7 +185,7 @@ export default function ChatScreen() {
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 100);
-  }, [messages, isTyping, currentStreamedMessage]);
+  }, [messages, isTyping]);
 
   // Format timestamp
   const formatTime = (date: Date) => {
@@ -390,4 +349,4 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     padding: 4,
   },
-}); 
+});
