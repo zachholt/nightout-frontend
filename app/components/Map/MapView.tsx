@@ -21,6 +21,11 @@ interface MapViewComponentProps {
   onMarkerPress: (location: NearbyLocation) => void;
 }
 
+// Cache configuration
+const NEARBY_USERS_CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
+const NEARBY_USERS_FETCH_THROTTLE = 30 * 1000; // 30 seconds
+const LOCATION_CHANGE_THRESHOLD = 50; // 50 meters
+
 const MapViewComponent: React.FC<MapViewComponentProps> = ({
   userLocation,
   selectedLocation,
@@ -34,23 +39,58 @@ const MapViewComponent: React.FC<MapViewComponentProps> = ({
 }) => {
   const [routeCoordinates, setRouteCoordinates] = useState<{ latitude: number; longitude: number }[]>([]);
   const [nearbyUsers, setNearbyUsers] = useState<UserResponse[]>([]);
-  const [lastFetchedLocation, setLastFetchedLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [lastFetchTime, setLastFetchTime] = useState<number>(0);
+  const [lastFetchedLocation, setLastFetchedLocation] = useState<{ lat: number; lng: number; timestamp: number } | null>(null);
   const UserImages = {
     default: require('../../../assets/images/307ce493-b254-4b2d-8ba4-d12c080d6651.jpg'),
+  };
+
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    return R * c;
+  };
+
+  const shouldFetchNearbyUsers = (): boolean => {
+    if (!userLocation || !lastFetchedLocation) return true;
+
+    const now = Date.now();
+    const timeSinceLastFetch = now - lastFetchTime;
+    
+    // Check time-based throttle
+    if (timeSinceLastFetch < NEARBY_USERS_FETCH_THROTTLE) {
+      return false;
+    }
+
+    // Check if cache is expired
+    if (now - lastFetchedLocation.timestamp > NEARBY_USERS_CACHE_DURATION) {
+      return true;
+    }
+
+    // Check if user has moved significantly
+    const distance = calculateDistance(
+      lastFetchedLocation.lat,
+      lastFetchedLocation.lng,
+      userLocation.coords.latitude,
+      userLocation.coords.longitude
+    );
+
+    return distance > LOCATION_CHANGE_THRESHOLD;
   };
 
   useEffect(() => {
     const fetchNearbyUsers = async () => {
       try {
-        if (!userLocation) return;
-        
-        // Check if we've already fetched for this location (within a small threshold)
-        const threshold = 0.0001; // ~11 meters
-        if (lastFetchedLocation && 
-            Math.abs(lastFetchedLocation.lat - userLocation.coords.latitude) < threshold &&
-            Math.abs(lastFetchedLocation.lng - userLocation.coords.longitude) < threshold) {
-          return;
-        }
+        if (!userLocation || !shouldFetchNearbyUsers()) return;
 
         const users = await userApi.getUsersByCoordinates(
           userLocation.coords.latitude,
@@ -59,9 +99,11 @@ const MapViewComponent: React.FC<MapViewComponentProps> = ({
         );
         
         setNearbyUsers(users);
+        setLastFetchTime(Date.now());
         setLastFetchedLocation({
           lat: userLocation.coords.latitude,
-          lng: userLocation.coords.longitude
+          lng: userLocation.coords.longitude,
+          timestamp: Date.now()
         });
       } catch (error) {
         console.error('Error fetching nearby users:', error);
@@ -69,7 +111,7 @@ const MapViewComponent: React.FC<MapViewComponentProps> = ({
     };
 
     fetchNearbyUsers();
-  }, [userLocation, lastFetchedLocation]);
+  }, [userLocation]);
 
   useEffect(() => {
     const fetchRoute = async () => {
