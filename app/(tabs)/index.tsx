@@ -8,6 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { Stack } from 'expo-router';
 import BottomSheet from '@gorhom/bottom-sheet';
+import { debounce } from 'lodash';
+
 
 // Import types
 import { NearbyLocation, LocationFilters } from '../types/location';
@@ -31,6 +33,8 @@ export default function TabOneScreen() {
   const mapRef = useRef<MapView>(null);
   const bottomSheetRef = useRef<BottomSheet>(null);
   const { currentRoute, addToRoute, removeFromRoute } = useRoute();
+  const [radius, setRadius] = useState<number>(12000)
+  const [selectedTypes, setSelectedTypes] = useState<string[]>(['bar', 'restaurant']);
   
   // MARK: - State Variables
   const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
@@ -81,6 +85,13 @@ export default function TabOneScreen() {
     }
   }, []);
 
+  const debouncedFetchLocations = useCallback(
+    debounce((currentRadius: number) => {
+      fetchUserLocations(currentRadius);
+    }, 800), // 800ms debounce delay
+    [] // Empty dependency array to create only once
+  );
+
   // MARK: - Location Services
   useEffect(() => {
     fetchUserLocations();
@@ -103,7 +114,8 @@ export default function TabOneScreen() {
     };
   }, [navigation]);
   
-  const fetchUserLocations = async () => {
+  const fetchUserLocations = async (currentRadius?: number) => {
+    const searchRadius = currentRadius !== undefined ? currentRadius : radius;
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') {
       setError('Permission to access location was denied');
@@ -125,6 +137,8 @@ export default function TabOneScreen() {
       });
       
       const places = await fetchNearbyPlaces(
+        selectedTypes,
+        searchRadius,
         location.coords.latitude,
         location.coords.longitude,
         setIsLoading,
@@ -152,6 +166,12 @@ export default function TabOneScreen() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (userLocation) {
+      fetchUserLocations();
+    }
+  }, [selectedTypes]);
   
   // MARK: - Filtering and Sorting
   useEffect(() => {
@@ -237,6 +257,11 @@ export default function TabOneScreen() {
   
   const handleSortChange = (newSortBy: 'distance' | 'rating' | null) => {
     setSortBy(newSortBy);
+  };
+
+  const handleRadiusChange = (newRadius: number) => {
+    setRadius(newRadius);
+    debouncedFetchLocations(newRadius);
   };
   
   // MARK: - Map Interaction Handlers
@@ -329,6 +354,7 @@ export default function TabOneScreen() {
         onRegionChangeComplete={setRegion}
         nearbyLocations={filteredLocations} 
         onMarkerPress={handleLocationPress}
+        radius={radius}
       />
       
       <LocationBottomSheet
@@ -349,6 +375,10 @@ export default function TabOneScreen() {
         onRouteToggle={handleRouteToggle}
         isDark={isDark}
         onRefresh={fetchUserLocations}
+        radius={radius}
+        onRadiusChange={handleRadiusChange}
+        selectedTypes={selectedTypes}
+        onTypesChange={setSelectedTypes}
       />
     </GestureHandlerRootView>
   );
@@ -365,5 +395,17 @@ const styles = StyleSheet.create({
   },
   headerButton: {
     marginRight: 15,
+  },
+  sliderContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  sliderLabel: {
+    fontSize: 14,
+    marginBottom: 5,
+  },
+  slider: {
+    width: '100%',
+    height: 40,
   },
 });
