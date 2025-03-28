@@ -5,6 +5,8 @@ import { NearbyLocation } from '../types/location';
 
 // Function to fetch nearby places from Google Places API
 export const fetchNearbyPlaces = async (
+  types: string[],
+  radius: number,
   latitude: number,
   longitude: number,
   setIsLoading: (value: boolean) => void,
@@ -14,9 +16,11 @@ export const fetchNearbyPlaces = async (
   setError(null);
   
   try {
+    
+    const typesParam = types.length > 0 ? types.join('|') : 'bar|restaurant';
     // Fetch multiple types of places in a single request
     const response = await fetch(
-      `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=11500&type=bar|restaurant&keyword=bar&key=${GOOGLE_MAPS_API_KEY}`
+      `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=${radius}&type=${typesParam}&keyword=bar&key=${GOOGLE_MAPS_API_KEY}`
     );
     
     if (!response.ok) {

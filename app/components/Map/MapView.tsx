@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Image, Text } from 'react-native';
-import MapView, { Region, Marker, Polyline, Callout } from 'react-native-maps';
+import MapView, { Region, Marker, Polyline, Callout, Circle } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { NearbyLocation } from '../../types/location';
 import { RouteLocation } from '../../context/RouteContext';
@@ -19,6 +19,7 @@ interface MapViewComponentProps {
   onRegionChangeComplete: (region: Region) => void;
   nearbyLocations: NearbyLocation[];
   onMarkerPress: (location: NearbyLocation) => void;
+  radius: number;
 }
 
 // Cache configuration
@@ -35,7 +36,8 @@ const MapViewComponent: React.FC<MapViewComponentProps> = ({
   region,
   onRegionChangeComplete,
   nearbyLocations,
-  onMarkerPress
+  onMarkerPress,
+  radius
 }) => {
   const [routeCoordinates, setRouteCoordinates] = useState<{ latitude: number; longitude: number }[]>([]);
   const [nearbyUsers, setNearbyUsers] = useState<UserResponse[]>([]);
@@ -192,6 +194,19 @@ const MapViewComponent: React.FC<MapViewComponentProps> = ({
         showsUserLocation
         onPress={onMapPress}
       >  
+        {/* Show radius circle if user location exists */}
+        {userLocation && (
+          <Circle
+            center={{
+              latitude: userLocation.coords.latitude,
+              longitude: userLocation.coords.longitude,
+            }}
+            radius={radius+2300} // Use the radius prop
+            strokeColor="rgba(21, 112, 134, 0.5)"
+            fillColor="rgba(4, 31, 59, 0.3)"
+            strokeWidth={2}
+          />
+        )}
         {nearbyUsers.map((user) => (
           <Marker
             key={user.id}

@@ -1,11 +1,12 @@
 import React from 'react';
-import { View, StyleSheet, useColorScheme, Platform } from 'react-native';
+import { View, StyleSheet, useColorScheme, Platform, TouchableOpacity, Text } from 'react-native';
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import { NearbyLocation, LocationFilters } from '../../types/location';
 import LocationsList from '../Locations/LocationsList';
 import LocationDetails from '../Locations/LocationDetails';
 import LocationFiltersComponent from '../Locations/LocationFilters';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {RadiusSlider} from '../RadiusSlider';
 
 interface LocationBottomSheetProps {
   bottomSheetRef: React.RefObject<BottomSheet>;
@@ -25,6 +26,10 @@ interface LocationBottomSheetProps {
   onRouteToggle: () => void;
   isDark: boolean;
   onRefresh?: () => void;
+  radius: number;
+  onRadiusChange: (value: number) => void;
+  selectedTypes: string[];
+  onTypesChange: (types: string[]) => void;
 }
 
 const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
@@ -45,8 +50,26 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
   onRouteToggle,
   isDark,
   onRefresh,
+  radius,
+  onRadiusChange,
+  selectedTypes,
+  onTypesChange,
 }) => {
   const insets = useSafeAreaInsets();
+
+  const locationTypes = [
+    { id: 'bar', label: 'Bar' },
+    { id: 'restaurant', label: 'Restaurant' },
+    { id: 'night_club', label: 'Club' },
+    { id: 'hotel', label: 'Hotel' }
+  ];
+
+  const toggleType = (typeId: string) => {
+    const newTypes = selectedTypes.includes(typeId)
+      ? selectedTypes.filter(t => t !== typeId)
+      : [...selectedTypes, typeId];
+    onTypesChange(newTypes);
+  };
 
   const renderBottomSheetContent = () => {
     if (selectedLocation) {
@@ -71,11 +94,40 @@ const LocationBottomSheet: React.FC<LocationBottomSheetProps> = ({
             backgroundColor: isDark ? '#1c1c1e' : '#fff',
           }
         ]}>
+
+          {/* Type Filter Buttons */}
+          <View style={styles.typeButtonsContainer}>
+            {locationTypes.map(type => (
+              <TouchableOpacity
+                key={type.id}
+                style={[
+                  styles.typeButton,
+                  {
+                    backgroundColor: selectedTypes.includes(type.id)
+                      ? isDark ? '#444' : '#ddd'
+                      : isDark ? '#2c2c2e' : '#f5f5f5',
+                    borderColor: isDark ? '#555' : '#ccc',
+                  },
+                ]}
+                onPress={() => toggleType(type.id)}
+              >
+                <Text style={{ color: isDark ? '#fff' : '#000' }}>
+                  {type.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
           <LocationFiltersComponent
             filters={filters}
             onFiltersChange={onFiltersChange}
             sortBy={sortBy}
             onSortChange={onSortChange}
+          />
+          <RadiusSlider 
+            radius={radius}
+            onRadiusChange={onRadiusChange}
+            isDark={isDark}
           />
         </View>
         
@@ -123,7 +175,7 @@ const styles = StyleSheet.create({
   filtersContainer: {
     borderBottomWidth: 0,
     padding: 0,
-    paddingBottom: 2,
+    paddingBottom: 8, // Increased bottom padding
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -137,14 +189,43 @@ const styles = StyleSheet.create({
     }),
     zIndex: 10,
   },
+  typeButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingHorizontal: 16, // Added horizontal padding
+    paddingVertical: 12, // Added vertical padding
+    paddingBottom: 8, // Space below buttons
+  },
+  typeButton: {
+    paddingVertical: 10, // Increased vertical padding
+    paddingHorizontal: 12, // Increased horizontal padding
+    borderRadius: 20,
+    borderWidth: 1,
+    minWidth: 90, // Slightly wider buttons
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 4, // Space between buttons
+  },
+  typeButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  filtersContent: {
+    paddingHorizontal: 16, // Match the buttons padding
+    paddingTop: 8, // Space above filters
+  },
   divider: {
-    height: 2,
+    height: 1, // Thinner divider
     width: '100%',
-    marginTop: 0,
+    marginVertical: 8, // Space above and below divider
   },
   contentContainer: {
     flex: 1,
-    marginTop: 8,
+  },
+  scrollContent: {
+    paddingTop: 8, // Space at top of scroll view
+    paddingBottom: 16, // Space at bottom
+    paddingHorizontal: 16, // Side padding
   },
 });
 
