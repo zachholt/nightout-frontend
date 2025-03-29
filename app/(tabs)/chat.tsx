@@ -11,7 +11,6 @@ import {
   useColorScheme,
   ActivityIndicator,
   Keyboard,
-  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,9 +22,6 @@ interface Message {
   isUser: boolean;
   timestamp: Date;
 }
-
-// LangChain OpenAI API settings - updating to use our backend endpoint
-const API_ENDPOINT = '/api/chat/chat';
 
 export default function ChatScreen() {
   const colorScheme = useColorScheme();
@@ -42,7 +38,6 @@ export default function ChatScreen() {
   ]);
   const [isTyping, setIsTyping] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
-  const [sessionId, setSessionId] = useState(`session-${Date.now()}`);
 
   // Colors for the chat interface
   const colors = {
@@ -60,121 +55,50 @@ export default function ChatScreen() {
     separator: isDark ? '#38383A' : '#E5E5EA',
   };
 
-  // Add user message to the chat
-  const addUserMessage = (text: string) => {
-    const newMessage: Message = {
-      id: `user-${Date.now()}`,
-      text,
-      isUser: true,
-      timestamp: new Date(),
-    };
-    setMessages(prevMessages => [...prevMessages, newMessage]);
-  };
-
-  // Add AI response to the chat
-  const addAIMessage = (text: string) => {
-    const newMessage: Message = {
-      id: `ai-${Date.now()}`,
-      text,
-      isUser: false,
-      timestamp: new Date(),
-    };
-    setMessages(prevMessages => [...prevMessages, newMessage]);
-  };
-
-  // Send message to the backend API
-  const sendMessage = async (userMessage: string) => {
+  // Simulate AI response
+  const simulateResponse = (userMessage: string) => {
     setIsTyping(true);
     
-    try {
-      // Add user message to chat
-      addUserMessage(userMessage);
+    // Simulate typing delay
+    setTimeout(() => {
+      const responses = [
+        "I can help you find great bars and clubs in your area!",
+        "Looking for a specific type of venue? Let me know what you're in the mood for.",
+        "I can suggest popular routes that include multiple stops.",
+        "Would you like me to recommend places based on your current location?",
+        "I can help you plan a route with the best-rated venues in town."
+      ];
       
-      // Prepare the conversation history
-      const conversationHistory = messages.map(msg => ({
-        role: msg.isUser ? 'user' : 'assistant',
-        content: msg.text
-      }));
+      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
       
-      // Add the new user message
-      conversationHistory.push({
-        role: 'user',
-        content: userMessage
-      });
-      
-      // Prepare the request payload
-      const payload = {
-        "model": "mistral-vllm",
-        "temperature": null,
-        "top_p": 0.01,
-        "frequency_penalty": null,
-        "presence_penalty": null,
-        "max_tokens": null,
-        "n": null,
-        "stop": [
-            "\nUser:",
-            "\n User:",
-            "User:",
-            "User"
-        ],
-        "stream": false,
-        "seed": null,
-        "messages": conversationHistory,
-      };
-      
-      console.log('Sending request to:', API_ENDPOINT);
-      
-      // Make the API request using fetch
-      const response = await fetch(API_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-      
-      // Check if the response is ok
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-      
-      // First try to get the response as text
-      const responseText = await response.text();
-      console.log('Response received successfully');
-      
-      // If the response is empty, throw an error
-      if (!responseText) {
-        throw new Error('Empty response from server');
-      }
-      
-      // Add the AI response to the chat - using it directly as a string
-      addAIMessage(responseText);
-      
-    } catch (error: any) {
-      console.error('Error in chat request:', error);
-      
-      setMessages(prevMessages => [...prevMessages, {
-        id: `error-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-        text: `Sorry, I encountered an error: ${error.message || 'Unknown error'}`,
+      const newMessage: Message = {
+        id: Date.now().toString(),
+        text: randomResponse,
         isUser: false,
         timestamp: new Date(),
-      }]);
+      };
       
-      Alert.alert('Error', `Failed to connect to the AI service: ${error.message || 'Unknown error'}`);
-    } finally {
+      setMessages(prevMessages => [...prevMessages, newMessage]);
       setIsTyping(false);
-    }
+    }, 1500);
   };
 
   // Handle sending a message
   const handleSend = () => {
     if (input.trim() === '') return;
     
-    const userMessage = input.trim();
+    const newMessage: Message = {
+      id: Date.now().toString(),
+      text: input.trim(),
+      isUser: true,
+      timestamp: new Date(),
+    };
+    
+    setMessages(prevMessages => [...prevMessages, newMessage]);
     setInput('');
     
-    // Send message to backend
-    sendMessage(userMessage);
+    // Simulate AI response
+    simulateResponse(input);
     
     // Dismiss keyboard on send
     Keyboard.dismiss();
@@ -349,4 +273,4 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     padding: 4,
   },
-});
+}); 
