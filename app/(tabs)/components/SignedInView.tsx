@@ -10,6 +10,7 @@ import { authApi } from '@/services/auth';
 import { NearbyLocation } from '@/app/types/location';
 import { fetchNearbyPlaces } from '@/app/utils/apiUtils';
 import * as Location from 'expo-location';
+import { API_URL } from '@/app/config/api';
 
 interface SignedInViewProps {
   colors: {
@@ -33,7 +34,7 @@ const FAKE_USER_NAMES = [
 ];
 
 export function SignedInView({ colors, user, handleSignOut }: SignedInViewProps) {
-  const { error, updateProfilePicture } = useUser();
+  const { error, updateProfilePicture, deleteAccount } = useUser();
   const [cameraVisible, setCameraVisible] = useState(false);
   const [cameraRef, setCameraRef] = useState<CameraView | null>(null);
   const [cameraType, setCameraType] = useState<CameraType>('back'); // Default to back camera
@@ -107,12 +108,18 @@ export function SignedInView({ colors, user, handleSignOut }: SignedInViewProps)
       const setLoading = (val: boolean) => {};
       const setError = (val: string | null) => {};
       
-      // Fetch nearby places
+      // Define types and radius for the call
+      const defaultTypes = ['bar', 'restaurant']; // Example default types
+      const defaultRadius = 5000; // Example default radius in meters
+
+      // Fetch nearby places with correct arguments
       const places = await fetchNearbyPlaces(
-        location.coords.latitude,
-        location.coords.longitude,
-        setLoading,
-        setError
+        defaultTypes, // 1. types (array of strings)
+        defaultRadius, // 2. radius (number)
+        location.coords.latitude, // 3. latitude (number)
+        location.coords.longitude, // 4. longitude (number)
+        setLoading, // 5. setIsLoading function
+        setError    // 6. setError function
       );
       
       setNearbyLocations(places);
@@ -171,16 +178,15 @@ export function SignedInView({ colors, user, handleSignOut }: SignedInViewProps)
           if (createdUser) {
             setCreationProgress(`Checking in user ${i+1}/${numUsers} at ${location.name}`);
             
-            // Make a direct API call to check in the user at the location
-            await fetch(`http://44.203.161.109:8080/api/users/checkin?email=${email}`, {
+            // Updated API call to send lat/lng as query parameters using template literal
+            const checkInUrl = `${API_URL}/users/checkin?email=${encodeURIComponent(email)}&latitude=${location.location.latitude}&longitude=${location.location.longitude}`;
+            
+            await fetch(checkInUrl, {
               method: 'POST',
               headers: {
-                'Content-Type': 'application/json',
+                // No Content-Type needed for POST with no body
               },
-              body: JSON.stringify({
-                latitude: location.location.latitude,
-                longitude: location.location.longitude,
-              }),
+              // No body needed
             });
           }
         } catch (error) {
@@ -220,6 +226,31 @@ export function SignedInView({ colors, user, handleSignOut }: SignedInViewProps)
   const toggleCameraType = () => {
     console.log('Toggling camera type. Current type:', cameraType); // Debugging
     setCameraType((current) => (current === 'back' ? 'front' : 'back'));
+  };
+
+  const handleDeleteAccount = async () => {
+    Alert.alert(
+      "Delete Account",
+      "Are you sure you want to delete your account? This action cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Delete", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const deleted = await deleteAccount();
+              if (deleted) {
+                // Account deleted successfully, user will be automatically logged out
+                Alert.alert("Success", "Your account has been deleted.");
+              }
+            } catch (error) {
+              Alert.alert("Error", "Failed to delete your account. Please try again.");
+            }
+          } 
+        }
+      ]
+    );
   };
 
   if (!permission?.granted) {
@@ -344,6 +375,13 @@ export function SignedInView({ colors, user, handleSignOut }: SignedInViewProps)
             <Ionicons name="chevron-forward" size={24} color="#ffffff" />
           </TouchableOpacity>
         )}
+        
+        <TouchableOpacity 
+          style={[styles.deleteAccountButton, { backgroundColor: colors.buttonBackground }]}
+          onPress={handleDeleteAccount}
+        >
+          <Text style={[styles.deleteAccountButtonText, { color: '#FF3B30' }]}>Delete Account</Text>
+        </TouchableOpacity>
         
         <TouchableOpacity 
           style={[styles.signOutButton, { backgroundColor: colors.buttonBackground }]}
@@ -495,6 +533,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   signOutButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  deleteAccountButton: {
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  deleteAccountButtonText: {
     fontSize: 16,
     fontWeight: '600',
   },

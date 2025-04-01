@@ -5,39 +5,58 @@ import { NearbyLocation } from '../types/location';
 
 // Function to fetch nearby places from Google Places API
 export const fetchNearbyPlaces = async (
-  types: string[],
+  selectedTypes: string[],
   radius: number,
   latitude: number,
   longitude: number,
-  setIsLoading: (value: boolean) => void,
-  setError: (value: string | null) => void
+  setLoading?: (loading: boolean) => void,
+  setError?: (error: string | null) => void
 ): Promise<NearbyLocation[]> => {
-  setIsLoading(true);
-  setError(null);
+  setLoading?.(true);
+  setError?.(null);
   
   try {
+    // If no types selected, default to showing all types
+    const typesToUse = selectedTypes.length === 0 
+      ? ['bar', 'restaurant', 'night_club', 'hotel'] 
+      : selectedTypes;
     
-    const typesParam = types.length > 0 ? types.join('|') : 'bar|restaurant';
-    // Fetch multiple types of places in a single request
-    const response = await fetch(
-      `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=${radius}&type=${typesParam}&keyword=bar&key=${GOOGLE_MAPS_API_KEY}`
-    );
+    // Store all results across all API calls
+    let allResults: any[] = [];
+    const processedPlaceIds = new Set<string>(); // Track IDs to avoid duplicates
     
-    if (!response.ok) {
-      throw new Error('Failed to fetch nearby places');
+    // Make separate API calls for each type (Google Places API limitation)
+    for (const type of typesToUse) {
+      const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latitude},${longitude}&radius=${radius}&type=${type}&key=${GOOGLE_MAPS_API_KEY}`;
+      
+      // Fetch places for this type
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        console.warn(`Failed to fetch nearby places for type: ${type}`);
+        continue; // Skip this type but continue with others
+      }
+      
+      const data = await response.json();
+      
+      if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+        console.warn(`Google Places API error for type ${type}:`, data.status, data.error_message);
+        continue; // Skip this type but continue with others
+      }
+      
+      // Add results, checking for duplicates
+      if (data.results && data.results.length > 0) {
+        for (const place of data.results) {
+          if (!processedPlaceIds.has(place.place_id)) {
+            allResults.push(place);
+            processedPlaceIds.add(place.place_id);
+          }
+        }
+      }
     }
     
-    const data = await response.json();
-
-    console.log('featch bar response', data )
-    
-    if (data.status !== 'OK') {
-      console.error('Google Places API error:', data.status, data.error_message);
-      throw new Error(`Google Places API error: ${data.status}`);
-    }
-    
-    // Process and return the results
-    return data.results.map((place: any) => {
+    // Process and return the combined results
+    return allResults.map((place: any) => {
       // Determine the primary type from the types array
       let primaryType = 'bar'; // Default type
       
@@ -77,10 +96,10 @@ export const fetchNearbyPlaces = async (
     });
   } catch (error) {
     console.error('Error fetching nearby places:', error);
-    setError('Failed to fetch nearby places. Please try again.');
+    setError?.('Failed to fetch nearby places. Please try again.');
     return [];
   } finally {
-    setIsLoading(false);
+    setLoading?.(false);
   }
 };
 

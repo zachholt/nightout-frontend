@@ -48,4 +48,8 @@ export const authApi = {
   logout: async (): Promise<void> => {
     await axios.post(`${API_URL}/auth/logout`);
   },
+
+  deleteAccount: async (email: string): Promise<void> => {
+    await axios.delete(`${API_URL}/users/delete?email=${encodeURIComponent(email)}`);
+  },
 }; 

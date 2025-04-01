@@ -48,7 +48,7 @@ export const userApi = {
   getUsersByCoordinates: async (
     latitude: number, 
     longitude: number, 
-    radiusInMeters: number = 500
+    radiusInMeters: number = 20
   ): Promise<UserResponse[]> => {
     const response = await axios.get(
       `${API_URL}/users/by-coordinates`, 
@@ -61,7 +61,7 @@ export const userApi = {
   getUsersAtLocation: async (
     latitude: number,
     longitude: number,
-    radiusInMeters: number = 100
+    radiusInMeters: number = 10
   ): Promise<UserResponse[]> => {
     const response = await axios.get(
       `${API_URL}/users/at-location`,

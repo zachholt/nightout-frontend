@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -30,17 +30,18 @@ interface LocationDetailsProps {
 }
 
 const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, visible, onRouteToggle }) => {
+  console.log(`[LocationDetails] --- Render Start ---`);
+
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const { currentRoute } = useRoute();
-  const { user, checkIn, checkOut, isCheckedInAt, isCheckingIn } = useUser();
+  const { user, checkIn, checkOut, isCheckedInAt } = useUser();
   const { isFavorite, addFavorite, removeFavorite, error: favoriteError } = useFavorite();
-  const { usersAtLocations, isLoadingCounts, refreshLocationData } = useLocation();
+  const { usersByLocationId, isLoading, refreshUsersForLocation } = useLocation();
   const scrollY = useRef(new Animated.Value(0)).current;
   const [isScrolled, setIsScrolled] = useState(false);
   const [isFavoriting, setIsFavoriting] = useState(false);
-  const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
-  const REFRESH_INTERVAL = 10000; // 10 seconds
+  const [actionInProgress, setActionInProgress] = useState<'checkIn' | 'checkOut' | null>(null);
   
   // For smooth scrolling
   const scrollViewRef = useRef(null);
@@ -48,36 +49,13 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
   const { height, width } = Dimensions.get('window');
   
   const isInRoute = currentRoute.some(item => item.id === location.id);
-  const isUserCheckedIn = user && isCheckedInAt(location.location);
+  const isUserCheckedIn = user && location ? isCheckedInAt(location.location) : false;
   const isLocationFavorite = isFavorite(location.id);
 
-  // Fetch users at this location using LocationContext
-  useEffect(() => {
-    if (!visible || !location) return;
+  console.log(`[LocationDetails] User object from context:`, user ? { id: user.id, lat: user.latitude, lon: user.longitude } : null);
+  console.log(`[LocationDetails] Calculated local isUserCheckedIn: ${isUserCheckedIn}`);
+  console.log(`[LocationDetails] Current actionInProgress: ${actionInProgress}`);
 
-    const currentTime = Date.now();
-    if (currentTime - lastRefreshTime < REFRESH_INTERVAL) {
-      return; // Skip refresh if not enough time has passed
-    }
-
-    const fetchData = async () => {
-      await refreshLocationData([location.id], [{
-        latitude: location.location.latitude,
-        longitude: location.location.longitude
-      }]);
-      setLastRefreshTime(currentTime);
-    };
-
-    fetchData();
-
-    // Set up periodic refresh
-    const refreshInterval = setInterval(fetchData, REFRESH_INTERVAL);
-
-    return () => {
-      clearInterval(refreshInterval);
-    };
-  }, [visible, location, refreshLocationData]);
-  
   const formatPhoneNumber = (phone: string | undefined) => {
     if (!phone) return 'Not available';
     return phone;
@@ -122,31 +100,79 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
   };
 
   // Handle check-in or check-out
-  const handleCheckInOut = async () => {
-    if (!user) {
+  const handleCheckInOut = useCallback(async () => {
+    console.log(`[LocationDetails] handleCheckInOut called. Initial local isUserCheckedIn: ${isUserCheckedIn}`);
+    
+    if (!user || !location) {
       Alert.alert('Sign In Required', 'Please sign in to check in at this location.');
       return;
     }
 
+    // Determine the action based on the current check-in status 
+    const action = isUserCheckedIn ? 'checkOut' : 'checkIn'; 
+    console.log(`[LocationDetails] Determined action: ${action}. Setting actionInProgress.`);
+    setActionInProgress(action); // Set local state immediately
+
     try {
-      if (isUserCheckedIn) {
-        // Check out
+      console.log(`[LocationDetails] Calling context function: ${action}`);
+      if (action === 'checkOut') {
         await checkOut();
-        Alert.alert('Success', 'You have checked out from this location!');
       } else {
-        // Check in
         await checkIn(
           location.location.latitude,
           location.location.longitude
         );
-        Alert.alert('Success', 'You have checked in at this location!');
+        // After successful check-in, immediately update our local state
+        // to reflect that we expect to be checked in at this location
+        console.log(`[LocationDetails] Check-in successful, button should update immediately`);
       }
+      console.log(`[LocationDetails] Context function ${action} finished.`);
+
+      // Refresh data after successful action
+      console.log(`[LocationDetails] Triggering manual refresh for location ${location.id} after ${action}.`);
+      refreshUsersForLocation(location.id, true)
+        .catch(err => {
+          console.error(`[LocationDetails] Error explicitly refreshing after ${action}:`, err);
+          Alert.alert('Refresh Error', 'Could not refresh user list after check-in/out.');
+        });
+
     } catch (err) {
-      const action = isUserCheckedIn ? 'check out' : 'check in';
+      console.error(`[LocationDetails] Error during ${action}:`, err);
       Alert.alert('Error', `Failed to ${action}. Please try again.`);
-      console.error(`${action} error:`, err);
+      // Reset local state immediately on error
+      setActionInProgress(null); 
+    } 
+
+  }, [user, isUserCheckedIn, checkIn, checkOut, location, refreshUsersForLocation, setActionInProgress]);
+  
+  // New useEffect to reset actionInProgress when user state updates
+  useEffect(() => {
+    // If we were in the middle of a check-in/out action,
+    // and the user object has now potentially been updated by the context,
+    // reset the local action state. This ensures the button reflects the new
+    // calculated isUserCheckedIn state based on the updated user data.
+    if (actionInProgress) {
+      console.log('[LocationDetails] useEffect detected user update while action was in progress. Resetting actionInProgress.');
+      setActionInProgress(null);
     }
-  };
+  }, [user]); // Dependency: ONLY the user object from context
+  
+  // New useEffect to explicitly sync with user check-in status
+  useEffect(() => {
+    // This synchronizes the component with the current user state
+    // by recalculating isUserCheckedIn whenever the user object changes
+    if (user) {
+      console.log('[LocationDetails] User object updated, recalculating check-in status');
+      // The isUserCheckedIn var will be recalculated on next render with updated user object
+    }
+
+    // Reset action state whenever user state changes,
+    // which happens after successful check-in/out operations
+    if (actionInProgress) {
+      console.log('[LocationDetails] Resetting actionInProgress based on user update');
+      setActionInProgress(null);
+    }
+  }, [user, location]);
   
   const openingHours = location.details?.openingHours;
   
@@ -179,12 +205,6 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
     }
   }, [location, visible]);
   
-  const headerOpacity = scrollY.interpolate({
-    inputRange: [0, 50, 100],
-    outputRange: [0, 0.7, 1],
-    extrapolate: 'clamp',
-  });
-  
   const handleFavoriteToggle = async () => {
     if (!user) {
       Alert.alert('Sign In Required', 'Please sign in to favorite locations.');
@@ -206,9 +226,29 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
     }
   };
 
-  // Get users at this location from the LocationContext
-  const usersAtLocation = usersAtLocations[location.id] || [];
+  // Get users for *this specific* location from the context state
+  const usersAtThisLocation = usersByLocationId[location.id] || [];
   
+  // Use the context's loading state
+  const displayLoading = isLoading; 
+
+  // Update the way we determine the button text to account for actionInProgress
+  const checkInOutButtonText = actionInProgress === 'checkIn' ? 'Checking In...' :
+                             actionInProgress === 'checkOut' ? 'Checking Out...' :
+                             isUserCheckedIn ? 'Check Out' : 'Check In';
+  
+  // Similarly update the button color logic
+  const checkInOutButtonColor = actionInProgress ? '#888' : // Grey when loading
+                             isUserCheckedIn ? '#FF9500' : // Orange for check-out
+                             '#4CD964'; // Green for check-in
+
+  // Determine button icon
+  const checkInOutButtonIcon = actionInProgress === 'checkOut' || (actionInProgress === null && isUserCheckedIn) 
+                               ? "exit-outline" 
+                               : "location";
+
+  console.log(`[LocationDetails] --- Render End --- ButtonText: ${checkInOutButtonText}`);
+
   return (
     <>
       {/* Initial Header */}
@@ -255,26 +295,18 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
             <TouchableOpacity
               style={[
                 styles.headerActionButton,
-                { 
-                  backgroundColor: isCheckingIn 
-                    ? '#888' 
-                    : isUserCheckedIn 
-                      ? '#FF9500' // Orange for check-out
-                      : '#4CD964'  // Green for check-in
-                }
+                { backgroundColor: checkInOutButtonColor }
               ]}
               onPress={handleCheckInOut}
-              disabled={isCheckingIn}
+              disabled={!!actionInProgress}
             >
               <Ionicons
-                name={isUserCheckedIn ? "exit-outline" : "location"}
+                name={checkInOutButtonIcon}
                 size={18}
                 color="#fff"
               />
               <Text style={styles.headerActionButtonText}>
-                {isCheckingIn 
-                  ? (isUserCheckedIn ? 'Checking Out...' : 'Checking In...') 
-                  : (isUserCheckedIn ? 'Check Out' : 'Check In')}
+                {checkInOutButtonText}
               </Text>
             </TouchableOpacity>
           )}
@@ -391,11 +423,12 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, vi
             </Text>
           </View>
           
-          {isLoadingCounts ? (
+          {/* Use the new loading state and user list */}
+          {displayLoading ? (
             <ActivityIndicator style={styles.loadingIndicator} color={isDark ? '#ddd' : '#666'} />
-          ) : usersAtLocation.length > 0 ? (
+          ) : usersAtThisLocation.length > 0 ? (
             <View style={styles.usersContainer}>
-              {usersAtLocation.map((userAtLocation) => (
+              {usersAtThisLocation.map((userAtLocation) => (
                 <View key={userAtLocation.id} style={styles.userCard}>
                   <View style={styles.userAvatarContainer}>
                     {userAtLocation.profileImage ? (
@@ -476,22 +509,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 4,
     fontSize: 14,
-  },
-  stickyHeader: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 60,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderBottomWidth: 1,
-    zIndex: 2,
-  },
-  stickyHeaderTitle: {
-    fontSize: 18,
-    fontWeight: '600',
   },
   scrollViewContent: {
     paddingBottom: 180, // Increased padding to prevent cut-off

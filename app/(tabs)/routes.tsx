@@ -345,28 +345,24 @@ export default function RoutesScreen() {
 
   // Render checked-in events
   const renderCheckedInEvents = () => {
+    console.log('Rendering Checked-In Locations. Count:', checkedInLocations.length); // Diagnostic log
+    console.log('Checked-in locations data:', checkedInLocations); // Log the actual data
+
+    // If there are no checked-in locations, render nothing for this section
     if (checkedInLocations.length === 0) {
-      return (
-        <View style={[styles.emptyState, { backgroundColor: cardBackground }]}>
-          <Ionicons name="checkmark-circle-outline" size={48} color={accentColor} />
-          <Text style={[styles.emptyStateText, { color: textColor }]}>
-            No checked-in locations yet
-          </Text>
-          <Text style={[styles.emptyStateSubtext, { color: textColor }]}>
-            Check in at locations from the map to see them here
-          </Text>
-        </View>
-      );
+      return null; 
     }
 
+    // Only render the section if there are locations
     return (
       <View style={styles.checkedInContainer}>
-        <Text style={[styles.sectionTitle, { color: textColor }]}>Checked-In Events</Text>
+        <Text style={[styles.sectionTitle, { color: textColor }]}>Checked-In Locations</Text>
         <View style={styles.listContainer}>
           {checkedInLocations.map((item) => (
             <LocationCard
-              location={item}
               key={item.id}
+              type="check-in"
+              location={item}
               name={item.name}
               distance={item.distance}
               address={item.address}
@@ -383,10 +379,48 @@ export default function RoutesScreen() {
   };
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: backgroundColor }]}>
-      <Text style={[styles.title, { color: textColor }]}>Your Route</Text>
+    <ScrollView 
+      style={[styles.container, { backgroundColor: backgroundColor }]}
+      contentContainerStyle={styles.contentContainer}
+    >
+      {/* Current Route Section */}
       {renderCurrentRoute()}
+      
+      {/* Spacer View */}
+      <View style={{ height: 24 }} /> 
+
+      {/* Checked-In Locations Section */}
       {renderCheckedInEvents()}
+
+      {/* Save Route Dialog */}
+      {showSaveDialog && (
+        <View style={styles.saveDialogOverlay}>
+          <View style={[styles.saveDialog, { backgroundColor: backgroundColor }]}>
+            <Text style={[styles.saveDialogTitle, { color: textColor }]}>Save Route</Text>
+            <TextInput
+              style={[styles.saveDialogInput, { color: textColor, borderColor: isDark ? '#444' : '#DDD' }]}
+              placeholder="Enter route name"
+              placeholderTextColor="#999"
+              value={routeName}
+              onChangeText={setRouteName}
+            />
+            <View style={styles.saveDialogButtons}>
+              <TouchableOpacity
+                style={[styles.saveDialogButton, { backgroundColor: '#FF3B30' }]}
+                onPress={() => setShowSaveDialog(false)}
+              >
+                <Text style={styles.saveDialogButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.saveDialogButton, { backgroundColor: accentColor }]}
+                onPress={handleSaveRoute}
+              >
+                <Text style={styles.saveDialogButtonText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -582,5 +616,8 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     marginBottom: 16,
+  },
+  contentContainer: {
+    padding: 16,
   },
 });

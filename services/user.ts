@@ -1,6 +1,5 @@
 import axios from 'axios';
-
-const API_URL = 'http://44.203.161.109:8080/api';
+import { API_URL } from '../app/config/api';
 
 export interface UserResponse {
   id: number;
@@ -12,15 +11,10 @@ export interface UserResponse {
   longitude: number | null;
 }
 
-export interface CheckInRequest {
-  latitude: number;
-  longitude: number;
-}
-
 export const userApi = {
   // Get current user
   getCurrentUser: async (email: string): Promise<UserResponse> => {
-    const response = await axios.get(`${API_URL}/users/me?email=${email}`);
+    const response = await axios.get(`${API_URL}/users/me`, { params: { email } });
     return response.data;
   },
 
@@ -34,8 +28,14 @@ export const userApi = {
   checkIn: async (email: string, latitude: number, longitude: number): Promise<UserResponse> => {
     const response = await axios.post(
       `${API_URL}/users/checkin`, 
-      { latitude, longitude },
-      { params: { email } }
+      null,
+      { 
+        params: { 
+          email, 
+          latitude, 
+          longitude 
+        } 
+      }
     );
     return response.data;
   },
@@ -44,20 +44,20 @@ export const userApi = {
   checkOut: async (email: string): Promise<UserResponse> => {
     const response = await axios.post(
       `${API_URL}/users/checkout`,
-      {},
+      null,
       { params: { email } }
     );
     return response.data;
   },
 
   // Get users at specific coordinates
-  getUsersByCoordinates: async (
+  getUsersNearby: async (
     latitude: number, 
     longitude: number, 
-    radiusInMeters: number = 500
+    radiusInMeters: number = 20
   ): Promise<UserResponse[]> => {
     const response = await axios.get(
-      `${API_URL}/users/by-coordinates`, 
+      `${API_URL}/users/nearby`,
       { params: { latitude, longitude, radiusInMeters } }
     );
     return response.data;
@@ -67,7 +67,7 @@ export const userApi = {
   getUsersAtLocation: async (
     latitude: number,
     longitude: number,
-    radiusInMeters: number = 100
+    radiusInMeters: number = 10
   ): Promise<UserResponse[]> => {
     const response = await axios.get(
       `${API_URL}/users/at-location`,

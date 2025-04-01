@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { userApi } from '@/services/user';
 import * as Location from 'expo-location';
 import { saveUserToStorage, getUserFromStorage, clearAuthStorage } from '../utils/storageUtils';
 import * as FileSystem from 'expo-file-system';
+import { authApi } from '@/services/auth';
 
 export interface User {
   id: number;
@@ -23,23 +24,24 @@ interface UserContextType {
   checkIn: (latitude: number, longitude: number) => Promise<void>;
   checkOut: () => Promise<void>;
   isCheckedInAt: (locationCoords: { latitude: number; longitude: number }) => boolean;
-  getUsersByLocation: (latitude: number, longitude: number, radiusInMeters?: number) => Promise<User[]>;
+  nearbyUsers: User[];
+  getUsersNearby: (latitude: number, longitude: number, radiusInMeters?: number) => Promise<User[]>;
   getUsersAtLocation: (latitude: number, longitude: number, radiusInMeters?: number) => Promise<User[]>;
   logout: () => Promise<void>;
-  updateProfilePicture: (imageUri: string) => Promise<void>; // New function for updating profile picture
+  updateProfilePicture: (imageUri: string) => Promise<void>;
+  deleteAccount: () => Promise<boolean>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
-// Helper function to check if coordinates are within a small radius
 const areCoordinatesClose = (
   lat1: number,
   lon1: number,
   lat2: number,
   lon2: number,
-  radiusInMeters: number = 50
+  radiusInMeters: number = 10
 ): boolean => {
-  const R = 6371e3; // Earth's radius in meters
+  const R = 6371e3;
   const φ1 = (lat1 * Math.PI) / 180;
   const φ2 = (lat2 * Math.PI) / 180;
   const Δφ = ((lat2 - lat1) * Math.PI) / 180;
@@ -59,8 +61,9 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isCheckingIn, setIsCheckingIn] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [nearbyUsers, setNearbyUsers] = useState<User[]>([]);
+  const [lastCheckedInLocation, setLastCheckedInLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
-  // Load user from storage on initial mount
   useEffect(() => {
     const loadUserFromStorage = async () => {
       try {
@@ -70,12 +73,10 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
-        // Verify the user still exists in the backend
         try {
           const currentUser = await userApi.getCurrentUser(storedUser.email);
           setUser(currentUser);
         } catch (error) {
-          // If user doesn't exist in backend (403 or other error), clear storage and return
           console.error('Error verifying user in backend:', error);
           await clearAuthStorage();
           setUser(null);
@@ -92,7 +93,6 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loadUserFromStorage();
   }, []);
 
-  // Save user to storage whenever it changes
   useEffect(() => {
     const saveUser = async () => {
       if (user) {
@@ -103,85 +103,147 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     saveUser();
   }, [user]);
 
-  const checkIn = async (latitude: number, longitude: number) => {
+  const checkIn = useCallback(async (latitude: number, longitude: number) => {
     if (!user) {
       setError('You must be logged in to check in');
       return;
     }
-
+    console.log('[UserContext] Attempting checkIn...');
     try {
       setIsCheckingIn(true);
       setError(null);
-
+      
+      // Store exact coordinates for precise check-in
+      setLastCheckedInLocation({ 
+        latitude: Number(latitude.toFixed(7)), 
+        longitude: Number(longitude.toFixed(7)) 
+      });
+      
       const updatedUser = await userApi.checkIn(user.email, latitude, longitude);
+      console.log('[UserContext] CheckIn API success. Updated user:', updatedUser);
+      console.log('[UserContext] Setting user state...');
       setUser(updatedUser);
+      console.log('[UserContext] User state set.');
+      try {
+        // Use smaller radius for nearby users
+        const users = await userApi.getUsersNearby(latitude, longitude, 10);
+        console.log('[UserContext] Fetched nearby users after checkIn:', users);
+        setNearbyUsers(users);
+      } catch (nearbyError) {
+        console.error('Error fetching nearby users after check-in:', nearbyError);
+        setNearbyUsers([]);
+      }
     } catch (error) {
       console.error('Check-in error:', error);
       setError('Failed to check in');
+      setNearbyUsers([]);
+      setLastCheckedInLocation(null);
     } finally {
+      console.log('[UserContext] Setting isCheckingIn to false.');
       setIsCheckingIn(false);
     }
-  };
+  }, [user, setUser, setNearbyUsers, setIsCheckingIn, setError]);
 
-  const checkOut = async () => {
+  const checkOut = useCallback(async () => {
     if (!user) {
       setError('You must be logged in to check out');
       return;
     }
-
+    console.log('[UserContext] Attempting checkOut...');
     try {
       setIsCheckingIn(true);
       setError(null);
-
       const updatedUser = await userApi.checkOut(user.email);
+      console.log('[UserContext] CheckOut API success. Updated user:', updatedUser);
+      console.log('[UserContext] Setting user state...');
       setUser(updatedUser);
+      console.log('[UserContext] User state set.');
+      setNearbyUsers([]);
+      setLastCheckedInLocation(null);
     } catch (error) {
       console.error('Check-out error:', error);
       setError('Failed to check out');
     } finally {
+      console.log('[UserContext] Setting isCheckingIn to false.');
       setIsCheckingIn(false);
     }
-  };
+  }, [user, setUser, setNearbyUsers, setIsCheckingIn, setError]);
 
-  const isCheckedInAt = (locationCoords: { latitude: number; longitude: number }): boolean => {
-    if (!user || user.latitude === null || user.longitude === null) return false;
+  const isCheckedInAt = useCallback((locationCoords: { latitude: number; longitude: number }): boolean => {
+    if (!user) return false;
     
-    // Use Haversine formula for more accurate distance calculation
-    const R = 6371e3; // Earth's radius in meters
-    const φ1 = (user.latitude * Math.PI) / 180;
-    const φ2 = (locationCoords.latitude * Math.PI) / 180;
-    const Δφ = ((locationCoords.latitude - user.latitude) * Math.PI) / 180;
-    const Δλ = ((locationCoords.longitude - user.longitude) * Math.PI) / 180;
-
-    const a =
-      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distance = R * c;
+    // First, check if the user has coordinates
+    if (user.latitude !== null && user.longitude !== null) {
+      // Calculate if within distance - using very small radius for exact check-ins
+      const isWithinRadius = areCoordinatesClose(
+        user.latitude, 
+        user.longitude, 
+        locationCoords.latitude, 
+        locationCoords.longitude,
+        10 // Explicitly set to 10m for precision
+      );
+      
+      console.log(`[UserContext] isCheckedInAt standard check:`, {
+        userCoords: { lat: user.latitude, lng: user.longitude },
+        locationCoords,
+        isWithinRadius
+      });
+      
+      if (isWithinRadius) return true;
+    }
     
-    // Increase the check-in radius to 100 meters (from 50) to match the server
-    return distance <= 100;
-  };
+    // Special case: If this is the location we just checked into
+    if (lastCheckedInLocation !== null) {
+      // Use exact coordinates with very small radius 
+      const isLastCheckedInLocation = areCoordinatesClose(
+        lastCheckedInLocation.latitude,
+        lastCheckedInLocation.longitude,
+        locationCoords.latitude,
+        locationCoords.longitude,
+        10 // Explicitly use a very small radius
+      );
+      
+      console.log(`[UserContext] isCheckedInAt lastCheckedInLocation check:`, {
+        lastCheckedInLocation,
+        locationCoords,
+        isLastCheckedInLocation
+      });
+      
+      if (isLastCheckedInLocation) return true;
+    }
+    
+    // Special case: We're in the middle of checking in/out status
+    // If isCheckingIn is true, we've initiated but not completed a state change 
+    if (isCheckingIn) {
+      console.log('[UserContext] isCheckedInAt - Still processing check-in/out');
+      return false; // Return previous state since we're in transition
+    }
+    
+    // Return final determination
+    return false;
+  }, [user, isCheckingIn, lastCheckedInLocation]);
 
-  const getUsersByLocation = async (
+  const getUsersNearby = useCallback(async (
     latitude: number, 
     longitude: number, 
-    radiusInMeters: number = 500
+    radiusInMeters?: number
   ): Promise<User[]> => {
     try {
       setError(null);
-      const users = await userApi.getUsersByCoordinates(latitude, longitude, radiusInMeters);
+      const users = await userApi.getUsersNearby(latitude, longitude, radiusInMeters);
+      setNearbyUsers(users);
       return users;
     } catch (err) {
-      console.error('Get users error:', err);
+      console.error('Get nearby users error:', err);
+      setNearbyUsers([]);
       return [];
     }
-  };
+  }, [setError, setNearbyUsers]);
 
-  const getUsersAtLocation = async (
+  const getUsersAtLocation = useCallback(async (
     latitude: number,
     longitude: number,
-    radiusInMeters: number = 100
+    radiusInMeters?: number
   ): Promise<User[]> => {
     try {
       setError(null);
@@ -191,46 +253,38 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Get users at location error:', err);
       return [];
     }
-  };
+  }, [setError]);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       setIsLoading(true);
       if (user) {
-        await userApi.checkOut(user.email);
+        try {
+          await userApi.checkOut(user.email);
+        } catch (checkoutError) {
+          console.warn('Error during checkout on logout:', checkoutError);
+        }
       }
       setUser(null);
+      setNearbyUsers([]);
       await clearAuthStorage();
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user, setUser, setNearbyUsers, setIsLoading]);
 
-  // Update profile picture
-  const updateProfilePicture = async (base64Image: string) => {
+  const updateProfilePicture = useCallback(async (base64Image: string) => {
     if (!user) {
       setError('You must be logged in to update your profile picture.');
       return;
     }
-
     try {
       setIsLoading(true);
       setError(null);
-
-      // Log the base64 image to confirm it's captured correctly
       console.log('Base64 Image:', base64Image);
-      // Send the base64 image to the backend
-      // const updatedUser = await userApi.updateProfilePicture(user.email, base64Image);
-
-      // For testing purposes, simulate an updated user object
-      const updatedUser = {
-        ...user,
-        profileImage: `data:image/jpg;base64,${base64Image}`, // Update the profile image locally
-      };
-
-      // Update the user state with the new profile picture
+      const updatedUser = { ...user, profileImage: `data:image/jpg;base64,${base64Image}` };
       setUser(updatedUser);
     } catch (err) {
       setError('Failed to update profile picture. Please try again.');
@@ -238,25 +292,69 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user, setUser, setError, setIsLoading]);
+
+  const deleteAccount = useCallback(async (): Promise<boolean> => {
+    if (!user) {
+      setError('You must be logged in to delete your account.');
+      return false;
+    }
+    
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      // Delete the user account
+      await authApi.deleteAccount(user.email);
+      
+      // Clear user data from context and storage
+      setUser(null);
+      setNearbyUsers([]);
+      await clearAuthStorage();
+      
+      return true;
+    } catch (error) {
+      console.error('Delete account error:', error);
+      setError('Failed to delete account. Please try again.');
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user, setUser, setNearbyUsers, setError, setIsLoading]);
+
+  const contextValue = useMemo(() => ({
+    user,
+    setUser,
+    isLoading,
+    isCheckingIn,
+    error,
+    checkIn,
+    checkOut,
+    isCheckedInAt,
+    nearbyUsers,
+    getUsersNearby,
+    getUsersAtLocation,
+    logout,
+    updateProfilePicture,
+    deleteAccount
+  }), [
+    user, 
+    isLoading, 
+    isCheckingIn, 
+    error, 
+    checkIn, 
+    checkOut, 
+    isCheckedInAt,
+    nearbyUsers, 
+    getUsersNearby, 
+    getUsersAtLocation, 
+    logout, 
+    updateProfilePicture,
+    deleteAccount
+  ]);
 
   return (
-    <UserContext.Provider
-      value={{
-        user,
-        setUser,
-        isLoading,
-        isCheckingIn,
-        error,
-        checkIn,
-        checkOut,
-        isCheckedInAt,
-        getUsersByLocation,
-        getUsersAtLocation,
-        logout,
-        updateProfilePicture
-      }}
-    >
+    <UserContext.Provider value={contextValue}>
       {children}
     </UserContext.Provider>
   );

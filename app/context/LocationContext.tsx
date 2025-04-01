@@ -1,145 +1,164 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User } from './UserContext';
-import { useUser } from './UserContext';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
+import { User, useUser } from './UserContext';
+import { NearbyLocation } from '../types/location';
 import { AppState } from 'react-native';
 
-// Interface for tracking user counts at locations
-interface LocationUserCounts {
-  [locationId: string]: number;
-}
-
-// Interface for users at locations
-interface LocationUsers {
+// --- Interfaces ---
+interface UsersByLocationId {
   [locationId: string]: User[];
 }
 
-// Interface for cache entries
-interface CacheEntry {
-  data: User[];
-  timestamp: number;
-}
-
-interface LocationCache {
-  [locationId: string]: CacheEntry;
+interface TimestampsByLocationId {
+  [locationId: string]: number;
 }
 
 interface LocationContextType {
-  userCounts: LocationUserCounts;
-  usersAtLocations: LocationUsers;
-  isLoadingCounts: boolean;
+  managedLocations: NearbyLocation[];
+  usersByLocationId: UsersByLocationId;
+  isLoading: boolean;
   error: string | null;
-  refreshLocationData: (locationIds: string[], coordinates: { latitude: number; longitude: number }[]) => Promise<void>;
+  setManagedLocations: (locations: NearbyLocation[]) => void;
+  refreshUsersForLocation: (locationId: string, force?: boolean) => Promise<void>;
+  refreshAllManagedUsers: (force?: boolean) => Promise<void>;
 }
 
+// --- Constants ---
 const LocationContext = createContext<LocationContextType | undefined>(undefined);
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const POLLING_INTERVAL = 30 * 1000; // 30 seconds
 
-// Cache configuration
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
-const FETCH_THROTTLE = 30 * 1000; // 30 seconds in milliseconds
-
+// --- Provider Component ---
 export const LocationProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [userCounts, setUserCounts] = useState<LocationUserCounts>({});
-  const [usersAtLocations, setUsersAtLocations] = useState<LocationUsers>({});
-  const [isLoadingCounts, setIsLoadingCounts] = useState<boolean>(false);
+  const [managedLocations, setManagedLocationsState] = useState<NearbyLocation[]>([]);
+  const [usersByLocationId, setUsersByLocationId] = useState<UsersByLocationId>({});
+  const [timestampsByLocationId, setTimestampsByLocationId] = useState<TimestampsByLocationId>({});
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [locationCache, setLocationCache] = useState<LocationCache>({});
-  const [lastFetchTime, setLastFetchTime] = useState<number>(0);
-  const { user, getUsersAtLocation } = useUser();
+  const { user, getUsersAtLocation } = useUser(); // Dependency from UserContext
 
-  const isCacheValid = (locationId: string): boolean => {
-    const cache = locationCache[locationId];
-    if (!cache) return false;
-    
-    const now = Date.now();
-    return now - cache.timestamp < CACHE_DURATION;
-  };
+  // Ref to track if a refresh is already in progress to prevent overlapping calls
+  const isRefreshingRef = useRef(false);
 
-  const canFetch = (): boolean => {
-    const now = Date.now();
-    return now - lastFetchTime >= FETCH_THROTTLE;
-  };
+  // --- Cache Logic ---
+  const isCacheValid = useCallback((locationId: string): boolean => {
+    const timestamp = timestampsByLocationId[locationId];
+    if (!timestamp) return false;
+    return Date.now() - timestamp < CACHE_DURATION;
+  }, [timestampsByLocationId]);
 
-  const refreshLocationData = async (
-    locationIds: string[],
-    coordinates: { latitude: number; longitude: number }[]
-  ) => {
-    if (!user || locationIds.length === 0) return;
-    
-    // Check if we should fetch based on throttle
-    if (!canFetch()) {
-      console.log('Skipping fetch due to throttle');
-      return;
+  // --- Core Fetching Logic ---
+  const fetchUsersForSingleLocation = useCallback(async (
+    location: NearbyLocation,
+    force: boolean = false
+  ): Promise<void> => {
+    if (!user) return; // Need logged-in user
+    if (!force && isCacheValid(location.id)) {
+      //console.log(`[LocationContext] Cache valid for ${location.id}`);
+      return; // Use cached data
     }
 
-    setIsLoadingCounts(true);
+    //console.log(`[LocationContext] Fetching users for ${location.id}. Forced: ${force}`);
+    try {
+      const users = await getUsersAtLocation(
+        location.location.latitude,
+        location.location.longitude,
+        100 // Radius
+      );
+      
+      // Atomic update for users and timestamp of this specific location
+      setUsersByLocationId(prev => ({
+        ...prev,
+        [location.id]: users,
+      }));
+      setTimestampsByLocationId(prev => ({
+        ...prev,
+        [location.id]: Date.now(),
+      }));
+
+    } catch (err) {
+      console.error(`[LocationContext] Error fetching users for ${location.id}:`, err);
+      setError(`Failed to fetch users for ${location.name}`);
+      // Clear data for this location on error?
+      setUsersByLocationId(prev => ({
+        ...prev,
+        [location.id]: [], // Set empty array on error
+      }));
+      // Don't update timestamp on error
+    }
+  }, [user, getUsersAtLocation, isCacheValid, setUsersByLocationId, setTimestampsByLocationId, setError]);
+
+  // --- Exposed Refresh Functions ---
+  const refreshUsersForLocation = useCallback(async (locationId: string, force: boolean = false) => {
+    const location = managedLocations.find(loc => loc.id === locationId);
+    if (location) {
+      await fetchUsersForSingleLocation(location, force);
+    }
+  }, [managedLocations, fetchUsersForSingleLocation]);
+
+  const refreshAllManagedUsers = useCallback(async (force: boolean = false) => {
+    if (!user || managedLocations.length === 0 || isRefreshingRef.current) {
+      //console.log('[LocationContext] Skipping refreshAllManagedUsers', { hasUser: !!user, count: managedLocations.length, isRefreshing: isRefreshingRef.current });
+      return; // Don't run if no user, no locations, or already refreshing
+    }
+
+    isRefreshingRef.current = true;
+    setIsLoading(true);
     setError(null);
-    setLastFetchTime(Date.now());
+    //console.log(`[LocationContext] Starting refreshAllManagedUsers. Forced: ${force}`);
 
     try {
-      const newCounts: LocationUserCounts = {};
-      const newUsers: LocationUsers = {};
-      const newCache: LocationCache = { ...locationCache };
-
-      // Process locations in batches to avoid too many simultaneous requests
-      const batchSize = 5;
-      for (let i = 0; i < locationIds.length; i += batchSize) {
-        const batchIds = locationIds.slice(i, i + batchSize);
-        const batchCoords = coordinates.slice(i, i + batchSize);
-
-        // Create an array of promises for each location in the batch
-        const promises = batchIds.map(async (locationId, index) => {
-          // Check cache first
-          if (isCacheValid(locationId)) {
-            const cachedData = locationCache[locationId].data;
-            newCounts[locationId] = cachedData.length;
-            newUsers[locationId] = cachedData;
-            return;
-          }
-
-          try {
-            const users = await getUsersAtLocation(
-              batchCoords[index].latitude,
-              batchCoords[index].longitude,
-              100 // Radius in meters
-            );
-
-            // Update cache
-            newCache[locationId] = {
-              data: users,
-              timestamp: Date.now()
-            };
-
-            newCounts[locationId] = users.length;
-            newUsers[locationId] = users;
-          } catch (error) {
-            console.error(`Error fetching users for location ${locationId}:`, error);
-            newCounts[locationId] = 0;
-            newUsers[locationId] = [];
-          }
-        });
-
-        // Wait for all promises in this batch to resolve
-        await Promise.all(promises);
-      }
-
-      setLocationCache(newCache);
-      setUserCounts(newCounts);
-      setUsersAtLocations(newUsers);
-    } catch (error) {
-      console.error('Error fetching location data:', error);
-      setError('Failed to fetch location data');
+      // Fetch users for all managed locations concurrently (respecting cache unless forced)
+      const promises = managedLocations.map(loc => fetchUsersForSingleLocation(loc, force));
+      await Promise.all(promises);
+      //console.log('[LocationContext] Finished refreshAllManagedUsers.');
+    } catch (err) {
+      // Error handled within fetchUsersForSingleLocation, but log general failure too
+      console.error('[LocationContext] Error during refreshAllManagedUsers:', err);
+      setError('Failed to refresh some location data');
     } finally {
-      setIsLoadingCounts(false);
+      setIsLoading(false);
+      isRefreshingRef.current = false;
     }
-  };
+  }, [user, managedLocations, fetchUsersForSingleLocation, setIsLoading, setError]);
 
-  // Set up an AppState listener to refresh when app comes to foreground
+  // --- Function to Update Managed Locations ---
+  const setManagedLocations = useCallback((locations: NearbyLocation[]) => {
+    //console.log(`[LocationContext] Setting managed locations: ${locations.length} locations.`);
+    setManagedLocationsState(locations);
+    // Trigger a refresh for the new set of locations (will respect cache)
+    refreshAllManagedUsers(false);
+  }, [refreshAllManagedUsers]);
+
+  // --- Polling Effect ---
+  useEffect(() => {
+    //console.log('[LocationContext] Setting up polling interval.');
+    const intervalId = setInterval(() => {
+      //console.log('[LocationContext] Polling: Triggering refreshAllManagedUsers.');
+      refreshAllManagedUsers(false); // Poll without forcing cache
+    }, POLLING_INTERVAL);
+
+    return () => {
+      //console.log('[LocationContext] Clearing polling interval.');
+      clearInterval(intervalId);
+    };
+  }, [refreshAllManagedUsers]); // Re-run if refresh function changes (it shouldn't often)
+
+  // --- AppState Foreground Refresh Effect ---
   useEffect(() => {
     const handleAppStateChange = (nextAppState: string) => {
       if (nextAppState === 'active') {
-        // Clear the cache when app comes to foreground
-        setLocationCache({});
-        setLastFetchTime(0); // Reset throttle
+        //console.log('[LocationContext] App became active. Forcing refresh of all managed users.');
+        // Force a refresh when app comes to foreground
+        refreshAllManagedUsers(true);
       }
     };
 
@@ -148,23 +167,35 @@ export const LocationProvider: React.FC<{ children: ReactNode }> = ({ children }
     return () => {
       appStateSubscription.remove();
     };
-  }, []);
+  }, [refreshAllManagedUsers]);
+
+  // --- Context Value ---
+  const contextValue = useMemo(() => ({
+    managedLocations,
+    usersByLocationId,
+    isLoading,
+    error,
+    setManagedLocations,
+    refreshUsersForLocation,
+    refreshAllManagedUsers,
+  }), [
+    managedLocations,
+    usersByLocationId,
+    isLoading,
+    error,
+    setManagedLocations, // Include the setter
+    refreshUsersForLocation, // Include the specific refresh
+    refreshAllManagedUsers, // Include the general refresh
+  ]);
 
   return (
-    <LocationContext.Provider
-      value={{
-        userCounts,
-        usersAtLocations,
-        isLoadingCounts,
-        error,
-        refreshLocationData,
-      }}
-    >
+    <LocationContext.Provider value={contextValue}>
       {children}
     </LocationContext.Provider>
   );
 };
 
+// --- Hook ---
 export const useLocation = () => {
   const context = useContext(LocationContext);
   if (context === undefined) {

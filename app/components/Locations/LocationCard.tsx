@@ -39,7 +39,7 @@ export const LocationCard: React.FC<LocationCardProps> = ({
   const isDark = colorScheme === 'dark';
   const { user, isCheckedInAt } = useUser();
   
-  const isUserCheckedIn = user && isCheckedInAt(location.location);
+  const isUserCheckedIn = user && location ? isCheckedInAt(location.location) : false;
   
   const cardBackground = isDark ? '#2C2C2E' : '#F5F5F5';
   const textColor = isDark ? '#FFFFFF' : '#000000';
@@ -87,13 +87,12 @@ export const LocationCard: React.FC<LocationCardProps> = ({
             {name}
           </Text>
           <View style={styles.indicatorsContainer}>
-            {/* Always show user count if authenticated */}
             {isAuthenticated && (
               <View style={[
                 styles.userCountPill,
                 { 
                   backgroundColor: isUserCheckedIn 
-                    ? '#4CD964' // Green when user is checked in here 
+                    ? '#4CD964' // Green when user is checked in here
                     : (userCount > 0 ? '#007AFF' : (isDark ? '#3A3A3C' : '#D1D1D6')) 
                 }
               ]}>
@@ -153,7 +152,6 @@ export const LocationCard: React.FC<LocationCardProps> = ({
             </View>
           )}
           
-          {/* Only show the "You're Here" badge if not already showing it in the user count */}
           {isUserCheckedIn && !isAuthenticated && (
             <View style={styles.checkedInBadge}>
               <Ionicons name="checkmark-circle" size={12} color="#fff" />

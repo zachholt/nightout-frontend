@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Image, Text } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, StyleSheet, Image, Text, Animated } from 'react-native';
 import MapView, { Region, Marker, Polyline, Callout, Circle } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { NearbyLocation } from '../../types/location';
 import { RouteLocation } from '../../context/RouteContext';
 import polyline from '@mapbox/polyline';
-import { userApi, UserResponse } from '@/services/user';
+import { useUser, User } from '@/app/context/UserContext';
 
 const GOOGLE_MAPS_API_KEY = 'AIzaSyBqIBvHNZL-QLFePoxHvc0PMID5k8YVhFs';
 
@@ -22,11 +22,6 @@ interface MapViewComponentProps {
   radius: number;
 }
 
-// Cache configuration
-const NEARBY_USERS_CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
-const NEARBY_USERS_FETCH_THROTTLE = 30 * 1000; // 30 seconds
-const LOCATION_CHANGE_THRESHOLD = 50; // 50 meters
-
 const MapViewComponent: React.FC<MapViewComponentProps> = ({
   userLocation,
   selectedLocation,
@@ -37,89 +32,42 @@ const MapViewComponent: React.FC<MapViewComponentProps> = ({
   onRegionChangeComplete,
   nearbyLocations,
   onMarkerPress,
-  radius
+  radius,
 }) => {
   const [routeCoordinates, setRouteCoordinates] = useState<{ latitude: number; longitude: number }[]>([]);
-  const [nearbyUsers, setNearbyUsers] = useState<UserResponse[]>([]);
-  const [lastFetchTime, setLastFetchTime] = useState<number>(0);
-  const [lastFetchedLocation, setLastFetchedLocation] = useState<{ lat: number; lng: number; timestamp: number } | null>(null);
+  const { nearbyUsers } = useUser();
+  const [showRadiusCircle, setShowRadiusCircle] = useState(true);
+  const [circleOpacity, setCircleOpacity] = useState(1);
+
+  useEffect(() => {
+    setShowRadiusCircle(true);
+    setCircleOpacity(1);
+    const timer = setTimeout(() => {
+      const fadeInterval = setInterval(() => {
+        setCircleOpacity(prev => {
+          const newOpacity = Math.max(0, prev - 0.1);
+          if (newOpacity <= 0) {
+            clearInterval(fadeInterval);
+            setShowRadiusCircle(false);
+          }
+          return newOpacity;
+        });
+      }, 50);
+      return () => {
+        clearInterval(fadeInterval);
+      };
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [radius]);
+
   const UserImages = {
     default: require('../../../assets/images/307ce493-b254-4b2d-8ba4-d12c080d6651.jpg'),
   };
-
-  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-    const R = 6371e3; // Earth's radius in meters
-    const φ1 = lat1 * Math.PI / 180;
-    const φ2 = lat2 * Math.PI / 180;
-    const Δφ = (lat2 - lat1) * Math.PI / 180;
-    const Δλ = (lon2 - lon1) * Math.PI / 180;
-
-    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-              Math.cos(φ1) * Math.cos(φ2) *
-              Math.sin(Δλ/2) * Math.sin(Δλ/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
-    return R * c;
-  };
-
-  const shouldFetchNearbyUsers = (): boolean => {
-    if (!userLocation || !lastFetchedLocation) return true;
-
-    const now = Date.now();
-    const timeSinceLastFetch = now - lastFetchTime;
-    
-    // Check time-based throttle
-    if (timeSinceLastFetch < NEARBY_USERS_FETCH_THROTTLE) {
-      return false;
-    }
-
-    // Check if cache is expired
-    if (now - lastFetchedLocation.timestamp > NEARBY_USERS_CACHE_DURATION) {
-      return true;
-    }
-
-    // Check if user has moved significantly
-    const distance = calculateDistance(
-      lastFetchedLocation.lat,
-      lastFetchedLocation.lng,
-      userLocation.coords.latitude,
-      userLocation.coords.longitude
-    );
-
-    return distance > LOCATION_CHANGE_THRESHOLD;
-  };
-
-  useEffect(() => {
-    const fetchNearbyUsers = async () => {
-      try {
-        if (!userLocation || !shouldFetchNearbyUsers()) return;
-
-        const users = await userApi.getUsersByCoordinates(
-          userLocation.coords.latitude,
-          userLocation.coords.longitude,
-          500 // radius in meters
-        );
-        
-        setNearbyUsers(users);
-        setLastFetchTime(Date.now());
-        setLastFetchedLocation({
-          lat: userLocation.coords.latitude,
-          lng: userLocation.coords.longitude,
-          timestamp: Date.now()
-        });
-      } catch (error) {
-        console.error('Error fetching nearby users:', error);
-      }
-    };
-
-    fetchNearbyUsers();
-  }, [userLocation]);
 
   useEffect(() => {
     const fetchRoute = async () => {
       try {
         if (!userLocation || !selectedLocation) return;
-
         const origin = {
           location: {
             latLng: {
@@ -128,7 +76,6 @@ const MapViewComponent: React.FC<MapViewComponentProps> = ({
             },
           },
         };
-
         const destination = {
           location: {
             latLng: {
@@ -137,7 +84,6 @@ const MapViewComponent: React.FC<MapViewComponentProps> = ({
             },
           },
         };
-
         const response = await fetch(
           'https://routes.googleapis.com/directions/v2:computeRoutes',
           {
@@ -158,9 +104,7 @@ const MapViewComponent: React.FC<MapViewComponentProps> = ({
             }),
           }
         );
-
         const data = await response.json();
-
         if (data.routes && data.routes.length > 0) {
           const encodedPolyline = data.routes[0].polyline.encodedPolyline;
           const decoded = polyline.decode(encodedPolyline);
@@ -174,7 +118,6 @@ const MapViewComponent: React.FC<MapViewComponentProps> = ({
         console.error('Error fetching directions:', error);
       }
     };
-
     fetchRoute();
   }, [userLocation, selectedLocation]);
 
@@ -193,21 +136,45 @@ const MapViewComponent: React.FC<MapViewComponentProps> = ({
         onRegionChangeComplete={onRegionChangeComplete}
         showsUserLocation
         onPress={onMapPress}
-      >  
-        {/* Show radius circle if user location exists */}
-        {userLocation && (
-          <Circle
-            center={{
-              latitude: userLocation.coords.latitude,
-              longitude: userLocation.coords.longitude,
-            }}
-            radius={radius+2300} // Use the radius prop
-            strokeColor="rgba(21, 112, 134, 0.5)"
-            fillColor="rgba(4, 31, 59, 0.3)"
-            strokeWidth={2}
-          />
+      >
+        {userLocation && showRadiusCircle && (
+          <>
+            <Circle
+              center={{
+                latitude: userLocation.coords.latitude,
+                longitude: userLocation.coords.longitude,
+              }}
+              radius={radius}
+              strokeColor={`rgba(32, 157, 188, ${circleOpacity * 0.6})`}
+              fillColor={`rgba(32, 157, 188, ${circleOpacity * 0.08})`}
+              strokeWidth={2}
+            />
+            
+            <Circle
+              center={{
+                latitude: userLocation.coords.latitude,
+                longitude: userLocation.coords.longitude,
+              }}
+              radius={radius * 0.25}
+              strokeColor={`rgba(32, 157, 188, ${circleOpacity * 0.4})`}
+              fillColor={`rgba(32, 157, 188, ${circleOpacity * 0.15})`}
+              strokeWidth={1}
+            />
+            
+            <Circle
+              center={{
+                latitude: userLocation.coords.latitude,
+                longitude: userLocation.coords.longitude,
+              }}
+              radius={radius * 1.1}
+              strokeColor={`rgba(32, 157, 188, ${circleOpacity * 0.3})`}
+              fillColor="transparent"
+              strokeWidth={1.5}
+            />
+          </>
         )}
-        {nearbyUsers.map((user) => (
+        
+        {nearbyUsers.map((user: User) => (
           <Marker
             key={user.id}
             coordinate={{
@@ -225,7 +192,6 @@ const MapViewComponent: React.FC<MapViewComponentProps> = ({
             <Callout>
               <View style={styles.calloutContainer}>
                 <Text style={styles.calloutTitle}>{user.name}</Text>
-                <Text style={styles.calloutSubtitle}>{user.email}</Text>
               </View>
             </Callout>
           </Marker>
@@ -262,7 +228,7 @@ const MapViewComponent: React.FC<MapViewComponentProps> = ({
         {routeCoordinates.length > 0 && (
           <Polyline
             coordinates={routeCoordinates}
-            strokeColor="#2196F3"
+            strokeColor="#007AFF"
             strokeWidth={4}
           />
         )}
@@ -276,34 +242,33 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   map: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
   },
   userMarkerContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: '#ffffff',
-    backgroundColor: '#ffffff',
+    backgroundColor: 'white',
+    padding: 3,
+    borderRadius: 15,
+    borderColor: '#007AFF',
+    borderWidth: 1,
   },
   userMarkerImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 18,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
   },
   calloutContainer: {
-    padding: 8,
-    minWidth: 150,
+    width: 120,
+    padding: 6,
+    alignItems: 'center',
   },
   calloutTitle: {
-    fontSize: 14,
     fontWeight: 'bold',
-    marginBottom: 4,
+    fontSize: 14,
+    textAlign: 'center',
   },
   calloutSubtitle: {
     fontSize: 12,
-    color: '#666',
+    color: 'gray',
   },
 });
 
