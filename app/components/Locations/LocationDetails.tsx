@@ -43,13 +43,13 @@ interface LocationDetailsProps {
   onRouteToggle?: () => void;
 }
 
+const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, visible, onRouteToggle }) => {
 const LocationDetails: React.FC<LocationDetailsProps> = ({
   location,
   onClose,
   visible,
   onRouteToggle,
 }) => {
-  console.log(`[LocationDetails] --- Render Start ---`);
 
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
@@ -79,17 +79,6 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({
   const isUserCheckedIn =
     user && location ? isCheckedInAt(location.location) : false;
   const isLocationFavorite = isFavorite(location.id);
-
-  console.log(
-    `[LocationDetails] User object from context:`,
-    user ? { id: user.id, lat: user.latitude, lon: user.longitude } : null
-  );
-  console.log(
-    `[LocationDetails] Calculated local isUserCheckedIn: ${isUserCheckedIn}`
-  );
-  console.log(
-    `[LocationDetails] Current actionInProgress: ${actionInProgress}`
-  );
 
   const formatPhoneNumber = (phone: string | undefined) => {
     if (!phone) return "Not available";

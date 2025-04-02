@@ -8,9 +8,9 @@
     <true/>
     <key>EXUpdatesLaunchWaitMs</key>
     <integer>0</integer>
-    <key>EXUpdatesSDKVersion</key>
-    <string>52.0.0</string>
     <key>EXUpdatesURL</key>
-    <string>https://exp.host/@zachholt/nightout-frontend</string>
+    <string>https://u.expo.dev/1e866fef-d8e5-4063-ba4e-988c0579045e</string>
+    <key>EXUpdatesRuntimeVersion</key>
+    <string>1.0.0</string>
   </dict>
 </plist>
