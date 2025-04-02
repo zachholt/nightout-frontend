@@ -21,6 +21,10 @@
           "location",
           "fetch",
           "location",
+          "fetch",
+          "location",
+          "fetch",
+          "location",
           "fetch"
         ],
         "ITSAppUsesNonExemptEncryption": false
@@ -61,6 +65,10 @@
         "projectId": "1e866fef-d8e5-4063-ba4e-988c0579045e"
       }
     },
-    "owner": "zachholt"
+    "owner": "zachholt",
+    "runtimeVersion": "1.0.0",
+    "updates": {
+      "url": "https://u.expo.dev/1e866fef-d8e5-4063-ba4e-988c0579045e"
+    }
   }
 }

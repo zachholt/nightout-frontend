@@ -61,6 +61,20 @@ export const LocationProvider: React.FC<{ children: ReactNode }> = ({ children }
     force: boolean = false
   ): Promise<void> => {
     if (!user) return; // Need logged-in user
+
+    // --- START ADDED CHECK --- 
+    // Ensure latitude and longitude are valid numbers before proceeding
+    const lat = location.location.latitude;
+    const lon = location.location.longitude;
+    if (typeof lat !== 'number' || isNaN(lat) || typeof lon !== 'number' || isNaN(lon)) {
+      console.warn(`[LocationContext] Invalid coordinates for location ${location.id} (${location.name}). Skipping user fetch.`);
+      // Optionally clear users for this location or leave existing cache
+      // setUsersByLocationId(prev => ({ ...prev, [location.id]: [] })); 
+      // setTimestampsByLocationId(prev => ({ ...prev, [location.id]: Date.now() })); 
+      return; 
+    }
+    // --- END ADDED CHECK ---
+
     if (!force && isCacheValid(location.id)) {
       //console.log(`[LocationContext] Cache valid for ${location.id}`);
       return; // Use cached data
@@ -69,8 +83,8 @@ export const LocationProvider: React.FC<{ children: ReactNode }> = ({ children }
     //console.log(`[LocationContext] Fetching users for ${location.id}. Forced: ${force}`);
     try {
       const users = await getUsersAtLocation(
-        location.location.latitude,
-        location.location.longitude,
+        lat, // Use validated lat
+        lon, // Use validated lon
         100 // Radius
       );
       
