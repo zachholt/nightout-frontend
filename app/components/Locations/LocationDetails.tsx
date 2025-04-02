@@ -43,7 +43,6 @@ interface LocationDetailsProps {
   onRouteToggle?: () => void;
 }
 
-const LocationDetails: React.FC<LocationDetailsProps> = ({ location, onClose, visible, onRouteToggle }) => {
 const LocationDetails: React.FC<LocationDetailsProps> = ({
   location,
   onClose,
